@@ -462,30 +462,6 @@ on mobile, `right top` on desktop) because the subject is off-centre in both
 crops. This is load-bearing, not tuning — centred, her face leaves the frame
 entirely at some common widths. See §3a for the measurements before changing it.
 
-### 5c. The hero's height is reserved so the photo can't move
-
-`reservePanelHeight()` in `initHeroRfi()` measures **both panels with every
-conditional revealed**, takes the taller, and pins both to it with `min-height`.
-
-This is not cosmetic. The photo is `object-fit: cover`, so its crop is a function
-of the **container's aspect** — and the hero grows past its height cap whenever
-the form needs more room. That made every step change and every conditional
-reveal re-crop the photo: at 1280×800 the hero swung **672 → 783px** and the
-visible slice of the image slid **321 source px sideways** as the form was filled
-in. The subject visibly jumped. With the reservation the hero's height depends
-only on the viewport, so the crop is byte-identical in all six states (step 1
-bare / with follow-ups / with the disqualifier, step 2, step 2 + benefits, and
-back again — verified). It also stops the buttons moving under the cursor on a
-step change, and it is closer to the design, whose hero is a fixed height.
-
-⚠️ **Desktop only** (`min-width: 769px`). Below that the photo is a fixed 568px
-band whose crop already doesn't depend on the form at all, so reserving buys
-nothing there and costs a lot — the tallest state is ~911px, which would leave
-step 1 with hundreds of px of empty dark panel.
-
-⚠️ It runs on **init and resize only**, never from a `ResizeObserver` — it
-mutates the very heights such an observer would be watching.
-
 ### 5a. Conditional questions
 
 Three question groups are **hidden at rest** and revealed by `initHeroRfi()`.
@@ -528,30 +504,6 @@ RN answer, so a stale "No" can't keep that block alive for another area.
 These are the blocks the **hero mockup had switched off** (`Frame 9`, hidden), so
 an implementation built from the hero node alone silently omits them. The
 canonical source is the Form component, `variation=PMLP 2 step` (`345:30649`).
-
-### 5d. The three step-1 dropdowns are a gated chain
-
-`syncChain()` in `initHeroRfi()`. Each link is disabled until the one before it
-is answered, so the row can only be worked left to right:
-
-```
-degree  ──enables──▶  area of study  ──enables──▶  specialisation
-```
-
-- **Clearing a link tears down everything downstream.** Setting degree back to
-  its placeholder empties *and* re-disables both area and specialisation;
-  changing the area rebuilds the specialisation options from `SPECIALIZATIONS`.
-  Without that, a stale specialisation could be submitted for an area that no
-  longer applies.
-- **The option list is rebuilt only when it actually changes**, keyed on
-  `specSelect.dataset.forArea`. `syncChain()` runs on *every* select change, so
-  an unconditional rebuild would wipe a valid specialisation the moment the user
-  touched anything else.
-- **The step-1 gate only flags fields that are enabled.** A gated link is empty
-  *because* its predecessor is — painting it red would point at a control the
-  user can't use and bury the field that actually needs them. The gate now walks
-  them forward one field at a time (verified: degree → area → specialisation,
-  focus following each).
 
 ### 5b. Field states are a component contract, not decoration
 
@@ -624,6 +576,56 @@ carries custom classes across but obviously not the tag, so icon rules must key
 off a class (`.rfi-field__error-icon`, `.rfi-field__check`) and never
 `.rfi-field__error i` — an element selector silently stops matching the moment
 the kit loads.
+
+---
+
+### 5c. The hero's height is reserved so the photo can't move
+
+`reservePanelHeight()` in `initHeroRfi()` measures **both panels with every
+conditional revealed**, takes the taller, and pins both to it with `min-height`.
+
+This is not cosmetic. The photo is `object-fit: cover`, so its crop is a function
+of the **container's aspect** — and the hero grows past its height cap whenever
+the form needs more room. That made every step change and every conditional
+reveal re-crop the photo: at 1280×800 the hero swung **672 → 783px** and the
+visible slice of the image slid **321 source px sideways** as the form was filled
+in. The subject visibly jumped. With the reservation the hero's height depends
+only on the viewport, so the crop is byte-identical in all six states (step 1
+bare / with follow-ups / with the disqualifier, step 2, step 2 + benefits, and
+back again — verified). It also stops the buttons moving under the cursor on a
+step change, and it is closer to the design, whose hero is a fixed height.
+
+⚠️ **Desktop only** (`min-width: 769px`). Below that the photo is a fixed 568px
+band whose crop already doesn't depend on the form at all, so reserving buys
+nothing there and costs a lot — the tallest state is ~911px, which would leave
+step 1 with hundreds of px of empty dark panel.
+
+⚠️ It runs on **init and resize only**, never from a `ResizeObserver` — it
+mutates the very heights such an observer would be watching.
+
+### 5d. The three step-1 dropdowns are a gated chain
+
+`syncChain()` in `initHeroRfi()`. Each link is disabled until the one before it
+is answered, so the row can only be worked left to right:
+
+```
+degree  ──enables──▶  area of study  ──enables──▶  specialisation
+```
+
+- **Clearing a link tears down everything downstream.** Setting degree back to
+  its placeholder empties *and* re-disables both area and specialisation;
+  changing the area rebuilds the specialisation options from `SPECIALIZATIONS`.
+  Without that, a stale specialisation could be submitted for an area that no
+  longer applies.
+- **The option list is rebuilt only when it actually changes**, keyed on
+  `specSelect.dataset.forArea`. `syncChain()` runs on *every* select change, so
+  an unconditional rebuild would wipe a valid specialisation the moment the user
+  touched anything else.
+- **The step-1 gate only flags fields that are enabled.** A gated link is empty
+  *because* its predecessor is — painting it red would point at a control the
+  user can't use and bury the field that actually needs them. The gate now walks
+  them forward one field at a time (verified: degree → area → specialisation,
+  focus following each).
 
 ---
 
@@ -731,7 +733,7 @@ All live in `main.js`, initialized on `DOMContentLoaded`. Every one is
 | `initParallax()` | Translates the content-band background image on scroll for depth. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
 | `initHeroParallax()` | The ONLY motion on the hero photo (a 13s ambient Ken Burns zoom/pan was removed — it read as the wall moving on its own). The hero is one frame now, so the **whole photo** (`.hero__bg-photo`) drifts together. Driven off `window.scrollY` so it responds from the first scroll pixel; drifts it down up to 12px. Overshoot comes only from the CSS `scale(1.05)` — see §3a before changing either number. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
 | `initContentParallax()` | Floats `.program-finder` (factor 0.2) up as you scroll, **capped so it can never cover the hero form** (§7a). **Driven off `window.scrollY`, NOT off each element's `getBoundingClientRect().top`** — a viewport-relative formula is already non-zero for anything on screen at load, which shoved the hero headline ~100px above its laid-out position. Must read 0 at `scrollY === 0`. ⚠️ **It deliberately skips `.hero__content` whenever `.hero__rfi` is present** (i.e. always, now): the copy would slide up away from a form that stays put, opening a growing gap between a heading and the fields it introduces. The form itself is excluded from every parallax on purpose — drifting selects and inputs are miserable to use. The old `heroContent` branch and its `offsetTop - 16` clip cap are still in the function for whenever the hero goes back to being purely decorative. | `scroll`/`resize`, throttled with `requestAnimationFrame`; plus a `ResizeObserver` for the cap |
-| `initHeroRfi()` | The hero RFI's step 1 ⇄ step 2 swap (toggles `hidden` on `[data-rfi-panel]`, syncs `.rfi__step--current` + `aria-current` on the stepper); the area-of-study → specialization cascade, which reads the **same `SPECIALIZATIONS` map the program finder uses** so the two can't drift apart; the **conditional step-1 follow-ups** (§5a); and **per-field error/success states** (§5b). Step 1 gates itself rather than calling `reportValidity()`, because the form is `novalidate` (so "Learn program details" — a next, not a submit — doesn't fire browser bubbles); the gate covers the three selects, any *visible* radio group, and the nursing dead end. Every step change focuses with `{ preventScroll: true }`: the panels are different heights, so a plain `focus()` scrolls the page to chase the field and drags the headline off screen. | direct listeners on the next/back/submit buttons, plus `change` on the selects/radios and `blur`/`input` on the text fields |
+| `initHeroRfi()` | The hero RFI's step 1 ⇄ step 2 swap (toggles `hidden` on `[data-rfi-panel]`, syncs `.rfi__step--current` + `aria-current` on the stepper); the **gated degree → area → specialisation chain** (§5d), whose options read the **same `SPECIALIZATIONS` map the program finder uses** so the two can't drift apart; the **conditional step-1 follow-ups** and the military-benefits follow-up (§5a); **per-field error / success / disabled states** (§5b); and the **height reservation** that keeps the photo still (§5c). Step 1 gates itself rather than calling `reportValidity()`, because the form is `novalidate` (so "Learn program details" — a next, not a submit — doesn't fire browser bubbles); the gate covers the three selects, any *visible* radio group, and the nursing dead end. Every step change focuses with `{ preventScroll: true }`: the panels are different heights, so a plain `focus()` scrolls the page to chase the field and drags the headline off screen. | direct listeners on the next/back/submit buttons, plus `change` on the selects/radios and `blur`/`input` on the text fields |
 | Card hover scale | CSS-only `transform: scale(1.02)` on `.stats-section__program:hover` (replaced the removed VanillaTilt 3D tilt — it caused a "jiggle"). Kept deliberately, on top of the card's white hover fill. Disabled under reduced-motion. | hover |
 
 > **Removed:** `initTilt()` / VanillaTilt. The cursor-following 3D tilt on the
@@ -920,13 +922,18 @@ browsers:
 | Carousel card slide-in (direction / distance / trigger) | `.carousel-reveal` on `.carousel__card` in `index.html`; `.carousel-reveal` rule in `css/styles.css` (`translate: 18% 0`); `revealSlide()` + safety timeout in `initCarousel()` (§7) |
 | Stat numbers or count-up speed | the markup values + `data-count-duration` attr (`js/main.js`) |
 | Stat number size / overlap | `.stats-section__value` font is `min(clamp(…12.8vw…), 44cqi)`; each `.stats-section__stat` is a container so the value scales to its cell and can't overflow into the next stat |
-| Hero height / above-the-fold reserve | `--hero-fold-reserve` + the `min-height` `max(floor, min(cap, …))` on `.hero` (§5) |
+| Hero height | desktop: `min-height: min(var(--hero-height), calc(100svh - var(--hero-fold-reserve)))` in the `769px+` block; mobile: **no** `min-height` at all, the hero is content-tall (§5). The reserve is just the header now — it no longer reserves room for the program finder |
 | Where the desk background starts | `--content-bg-top` on `.content-band__bg` (§7) |
 | Parallax strength | amplitude factor in `initParallax()` + CSS overshoot (§7) |
 | Hero photo parallax (amount / cap) | `initHeroParallax()` in `js/main.js` (factor `0.08` + **8px** cap, driven off `window.scrollY`); overshoot = `scale(1.05)` on `.hero__bg-photo`, and because `object-position` pins the top edge that overshoot is the entire budget — sized for the **shortest** container it runs on (mobile's 568px photo band, not desktop — see §3a) |
 | Which part of the photo stays in frame | `object-position` on `.hero__bg-image` (`center top`) and its `769px+` override (`right top`) — §3a. Centring it crops her face off at several common widths |
 | Hero RFI copy, fields, or step behaviour | `index.html` `.hero__rfi` (markup), `.rfi*` / `.rfi-field*` / `.rfi-radio*` blocks in `css/styles.css`, `initHeroRfi()` in `js/main.js`. The specialization options come from `SPECIALIZATIONS` at the top of `main.js` — shared with the program finder |
-| Hero layers / regenerate the cutout + wall | `.hero__bg-red` / `.hero__bg-people` in `index.html` + CSS; regen pipeline in §3a |
+| Re-export the hero photo | crop the two boxes in §3a out of the source and save as WebP; the layer classes `.hero__bg-red` / `.hero__bg-people` are **gone** — there is one `.hero__bg-photo` now |
+| Hero form height reservation (empty space under step 1) | `reservePanelHeight()` in `initHeroRfi()` — it pins both panels to the tallest state so the photo's crop can't shift between steps (§5c) |
+| Program finder riding over the hero buttons | `measureFinderRoom()` in `initContentParallax()` — the drift is capped on the form's clearance, recomputed every frame (§7a) |
+| The degree / area / specialisation gating | `syncChain()` in `initHeroRfi()` (§5d); the disabled look is `.rfi-field--disabled` in `css/styles.css` |
+| A dropdown's caret position | `.rfi-field__caret` + `.rfi-field__box--select` in `css/styles.css` — it is an element centred in the box, **not** a background image on the select (§5b) |
+| How wide the three learning-format options sit | `max-width` on `.rfi__question--formats` in the `769px+` block (§5a) — change that, not the 32px gap |
 | Sticky header offsets | `.utility-bar` / `.main-nav` `top`/`z-index` (§5) |
 | Program-finder dropdown options | `SPECIALIZATIONS` map in `js/main.js` |
 | "See all Capella programs" button alignment | `.stats-section__cta { align-self }` (right-aligned/flush with cards on desktop) |
