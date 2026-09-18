@@ -43,11 +43,12 @@
   --max-content: 1440px;
   --tiles-max-width: 1170px;
 
-  /* Hero heights from Figma. The hero fills the viewport minus the sticky
-     header + program-finder top, capped/floored at these design heights. */
-  --hero-height: 755px; /* desktop (>=1200px) cap (Figma hero height) */
-  --hero-height-tablet-max: 640px; /* tablet / small-desktop cap (769-1199px) */
-  --hero-height-mobile: 360px; /* mobile floor (<769px) */
+  /* Hero heights from Figma. On desktop the hero fills the viewport minus the
+     sticky header, capped at the design height. Mobile is content-driven: the
+     photo is a fixed band and the RFI panel below it is as tall as it needs. */
+  --hero-height: 912px; /* desktop cap (Figma 9770:20288) */
+  --hero-height-tablet-max: 760px; /* tablet / small-desktop cap (769-1199px) */
+  --hero-photo-mobile: 568px; /* mobile photo band (Figma 9770:20398) */
   --page-gutter: clamp(15px, 12.5vw, 240px);
   --radius-pill: 32px;
   --radius-card: 40px;
@@ -94,6 +95,20 @@
   --menu-text-muted: #d4d4d4; /* neutral-100 — levels column title + eyebrow */
   --menu-heading: #fafbfb; /* neutral-50 — areas/programs column headings */
   --menu-shadow: 0 5px 20px rgba(0, 0, 0, 0.1); /* CU/elevation 1 */
+
+  /* Form field states — EC design system, ↳ Dropdown (329:14428) and
+     ↳ Input field (264:4641). The hero form is on a dark surface, so these are
+     the DARK-theme resolutions of the status tokens; the light values are noted
+     beside each for whenever a light-surface form needs them.
+     ⚠️ Two of these differ between the two components in Figma — see the note
+     above `.rfi-field--error` in styles.css before "correcting" them. */
+  --field-focus-ring: #0f7bd9; /* gl-color-outline-focused (both themes) */
+  --field-error-line: #ffa8a8; /* dark; light = #d91111 */
+  --field-error-surface: #9c0c0c; /* dark; light = #fff5f5 */
+  --field-error-text: #ffffff; /* dark; light = #9c0c0c */
+  --field-success: #b0e8c1; /* dark; light = #0a822f */
+  --field-outline: #adadad; /* dropdown-color-outline-dark */
+  --field-label: #adadad; /* color-neutral-subtle-on-surface (dark) */
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 0.2s;

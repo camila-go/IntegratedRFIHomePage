@@ -34,7 +34,7 @@
     <meta property="og:url" content="https://www.capella.edu/" />
     <!-- ⚠️ Must become an absolute URL on the deployed host — several social
          crawlers will not resolve a root-relative og:image. -->
-    <meta property="og:image" content="/assets/hero-people.webp" />
+    <meta property="og:image" content="/assets/hero-rfi-desktop.webp" />
     <meta property="og:image:alt" content="Capella University learners" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Capella University" />
@@ -54,8 +54,22 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="css/styles.css" />
-    <link rel="preload" as="image" href="/assets/hero-people.webp" fetchpriority="high" />
-    <link rel="preload" as="image" href="/assets/hero-red.webp" />
+    <!-- One preload per crop, gated on the same query the <picture> uses, so a
+         phone never pulls the 2560px desktop frame (and vice versa). -->
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/hero-rfi-desktop.webp"
+      media="(min-width: 769px)"
+      fetchpriority="high"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="/assets/hero-rfi-mobile.webp"
+      media="(max-width: 768px)"
+      fetchpriority="high"
+    />
     <script src="https://kit.fontawesome.com/f1bee60eab.js" crossorigin="anonymous"></script>
 
     <!-- Structured data. Mirrors the entity Capella already publishes on
@@ -380,29 +394,409 @@
     </header>
 
     <main>
+      <!-- Hero + integrated RFI. Figma "CU-EDU — Phase 3 — Hi-Fi Mockups",
+           node 9770:20288 (1920 on page load), 9770:20397 (375) and
+           9770:24417 (desktop step 2).
+
+           Single photo layer here, not the old two-layer red-wall + people
+           cutout: this composition is one frame with the subject on the right,
+           so there is nothing to separate. The two crops are pre-cut from the
+           same 4096x2322 source (see the note above .hero__bg-photo). -->
       <section class="hero" aria-labelledby="hero-heading">
         <div class="hero__background" aria-hidden="true">
-          <!-- Two layers: the red wall (parallaxes on scroll) and the people
-               cutout on top (static). See .hero__bg-red / .hero__bg-people. -->
-          <img
-            src="/assets/hero-red.webp"
-            alt=""
-            class="hero__bg-image hero__bg-red media-img"
-            decoding="async"
-          />
-          <img
-            src="/assets/hero-people.webp"
-            alt=""
-            class="hero__bg-image hero__bg-people media-img"
-            fetchpriority="high"
-            decoding="async"
-          />
+          <picture>
+            <source media="(max-width: 768px)" srcset="/assets/hero-rfi-mobile.webp" />
+            <img
+              src="/assets/hero-rfi-desktop.webp"
+              alt=""
+              class="hero__bg-image hero__bg-photo media-img"
+              fetchpriority="high"
+              decoding="async"
+            />
+          </picture>
           <div class="hero__gradient"></div>
         </div>
-        <div class="hero__content">
-          <h1 id="hero-heading" class="hero__title display-xl">what can&apos;t you do</h1>
-          <p class="hero__subtitle reveal" data-reveal-delay="4">Earn a degree built for your career.</p>
-          <a href="#" class="btn btn--white btn--lg hero__cta reveal" data-reveal-delay="5">Get started</a>
+
+        <div class="hero__inner">
+          <div class="hero__content">
+            <h1 id="hero-heading" class="hero__title display-xl">catch what you&rsquo;re chasing</h1>
+            <p class="hero__subtitle">
+              You&rsquo;re not just chasing a degree, you&rsquo;re chasing progress. Capella
+              University has programs to match the drive of busy, working adults like you.
+              It&rsquo;s time to lock in and go for more.
+            </p>
+          </div>
+
+          <!-- Two panels, one per step; initHeroRfi() toggles `hidden` and keeps
+               the stepper in sync. `novalidate` so the step-1 gate can report
+               problems itself rather than the browser bubbling on a submit
+               that is really a "next". -->
+          <form class="hero__rfi rfi" id="rfi-form" novalidate>
+            <div class="rfi__head">
+              <h2 class="rfi__title">Request program information</h2>
+              <ol class="rfi__stepper">
+                <li class="rfi__step rfi__step--current" data-rfi-step="1">STEP 1</li>
+                <li class="rfi__step" data-rfi-step="2">STEP 2</li>
+              </ol>
+            </div>
+
+            <div class="rfi__panel" data-rfi-panel="1">
+              <div class="rfi__prompt">
+                <h3 class="rfi__prompt-title">What are you interested in?</h3>
+                <p class="rfi__required">*All fields are required</p>
+              </div>
+
+              <div class="rfi__fields rfi__fields--3">
+                <!-- Field anatomy per the Dropdown component (329:14428): a
+                     bordered shell holding a 12px hint over the 16px value, an
+                     error bar that attaches to the shell's bottom edge, and a
+                     helper-text line below the whole thing. -->
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box rfi-field__box--select">
+                      <label class="rfi-field__hint" for="rfi-degree">
+                        Select your degree of interest here
+                      </label>
+                      <select
+                        id="rfi-degree"
+                        class="rfi-field__control rfi-field__select"
+                        aria-describedby="rfi-degree-error"
+                        required
+                      >
+                        <option value="">Degree selection</option>
+                        <option value="bachelors">Bachelor&apos;s</option>
+                        <option value="masters">Master&apos;s</option>
+                        <option value="doctoral">Doctoral</option>
+                        <option value="certificate">Certificate</option>
+                      </select>
+                      <i class="rfi-field__caret fa-sharp fa-solid fa-chevron-down" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-degree-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Select a degree to continue</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box rfi-field__box--select">
+                      <label class="rfi-field__hint" for="rfi-area">
+                        Select your area of study here
+                      </label>
+                      <select
+                        id="rfi-area"
+                        class="rfi-field__control rfi-field__select"
+                        aria-describedby="rfi-area-error"
+                        required
+                        disabled
+                      >
+                        <option value="">AOS selection</option>
+                        <option value="business">Business</option>
+                        <option value="counseling">Counseling</option>
+                        <option value="education">Education</option>
+                        <option value="health-sciences">Health Sciences</option>
+                        <option value="nursing">Nursing</option>
+                        <option value="psychology">Psychology</option>
+                        <option value="technology">Technology</option>
+                      </select>
+                      <i class="rfi-field__caret fa-sharp fa-solid fa-chevron-down" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-area-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Select an area of study to continue</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box rfi-field__box--select">
+                      <label class="rfi-field__hint" for="rfi-specialization">
+                        Select your specialization here
+                      </label>
+                      <!-- Options are filled from SPECIALIZATIONS once an area is
+                           picked — same source the program finder below uses. -->
+                      <select
+                        id="rfi-specialization"
+                        class="rfi-field__control rfi-field__select"
+                        aria-describedby="rfi-specialization-error"
+                        required
+                        disabled
+                      >
+                        <option value="">Specialization selection</option>
+                      </select>
+                      <i class="rfi-field__caret fa-sharp fa-solid fa-chevron-down" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-specialization-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Select a specialization to continue</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Conditional follow-ups. Figma annotates the whole row
+                   "GuidedPath/FlexPath programs only" and the RN group
+                   "Only shows if nursing is selected"; initHeroRfi() owns both
+                   gates. Hidden at rest, so `hidden` is the default state. -->
+              <div class="rfi__followups" data-rfi-followups hidden>
+                <fieldset class="rfi__question" data-rfi-rn hidden>
+                  <legend class="rfi__question-legend">
+                    Do you or will you (within six months) have an unrestricted RN license?
+                  </legend>
+                  <div class="rfi__radios">
+                    <label class="rfi-radio">
+                      <input type="radio" name="rnLicense" value="yes" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">Yes</span>
+                    </label>
+                    <label class="rfi-radio">
+                      <input type="radio" name="rnLicense" value="no" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">No</span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="rfi__question rfi__question--formats" data-rfi-formats hidden>
+                  <legend class="rfi__question-legend">
+                    We have two online learning formats. Which one are you most interested in?
+                  </legend>
+                  <div class="rfi__radios rfi__radios--formats">
+                    <label class="rfi-radio">
+                      <input type="radio" name="format" value="guidedpath" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">GuidedPath:<br />Follow our schedule</span>
+                    </label>
+                    <label class="rfi-radio">
+                      <input type="radio" name="format" value="flexpath" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">FlexPath:<br />Set your own pace</span>
+                    </label>
+                    <label class="rfi-radio">
+                      <input type="radio" name="format" value="both" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">I&apos;d like information on both</span>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+
+              <!-- Shown when nursing is picked and the RN answer is "No" — that
+                   combination can't proceed, so this also gates the next step. -->
+              <p class="rfi__disqualifier" data-rfi-disqualifier role="alert" hidden>
+                Capella&rsquo;s nursing degree programs require a current, unrestricted RN
+                license. Please select a different area of study to continue.
+              </p>
+
+              <div class="rfi__actions">
+                <button type="button" class="btn btn--primary btn--md" data-rfi-next>
+                  Learn program details
+                </button>
+              </div>
+            </div>
+
+            <div class="rfi__panel" data-rfi-panel="2" hidden>
+              <div class="rfi__prompt">
+                <h3 class="rfi__prompt-title">Tell us about yourself</h3>
+                <p class="rfi__required">*All fields are required</p>
+              </div>
+
+              <!-- Input field component (264:4641): no hint inside the box —
+                   the label IS the placeholder here — plus a success check, an
+                   attached error bar, and a helper-text line. -->
+              <div class="rfi__fields rfi__fields--5">
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box">
+                      <label class="visually-hidden" for="rfi-first">First name</label>
+                      <input
+                        id="rfi-first"
+                        class="rfi-field__control rfi-field__input"
+                        type="text"
+                        name="firstName"
+                        autocomplete="given-name"
+                        placeholder="First name"
+                        aria-describedby="rfi-first-error"
+                        required
+                      />
+                      <i class="rfi-field__check fa-sharp fa-solid fa-check" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-first-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Enter your first name</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box">
+                      <label class="visually-hidden" for="rfi-last">Last name</label>
+                      <input
+                        id="rfi-last"
+                        class="rfi-field__control rfi-field__input"
+                        type="text"
+                        name="lastName"
+                        autocomplete="family-name"
+                        placeholder="Last name"
+                        aria-describedby="rfi-last-error"
+                        required
+                      />
+                      <i class="rfi-field__check fa-sharp fa-solid fa-check" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-last-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Enter your last name</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box">
+                      <label class="visually-hidden" for="rfi-email">Email address</label>
+                      <input
+                        id="rfi-email"
+                        class="rfi-field__control rfi-field__input"
+                        type="email"
+                        name="email"
+                        autocomplete="email"
+                        placeholder="Email address"
+                        aria-describedby="rfi-email-error"
+                        required
+                      />
+                      <i class="rfi-field__check fa-sharp fa-solid fa-check" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-email-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Enter a valid email address</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box">
+                      <label class="visually-hidden" for="rfi-phone">Phone number</label>
+                      <input
+                        id="rfi-phone"
+                        class="rfi-field__control rfi-field__input"
+                        type="tel"
+                        name="phone"
+                        autocomplete="tel"
+                        placeholder="Phone number"
+                        aria-describedby="rfi-phone-error"
+                        required
+                      />
+                      <i class="rfi-field__check fa-sharp fa-solid fa-check" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-phone-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Enter a 10-digit phone number</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="rfi-field" data-rfi-field>
+                  <div class="rfi-field__shell">
+                    <div class="rfi-field__box">
+                      <label class="visually-hidden" for="rfi-zip">ZIP code</label>
+                      <input
+                        id="rfi-zip"
+                        class="rfi-field__control rfi-field__input"
+                        type="text"
+                        name="zip"
+                        autocomplete="postal-code"
+                        inputmode="numeric"
+                        pattern="[0-9]{5}"
+                        placeholder="ZIP code"
+                        aria-describedby="rfi-zip-error"
+                        required
+                      />
+                      <i class="rfi-field__check fa-sharp fa-solid fa-check" aria-hidden="true"></i>
+                    </div>
+                    <p class="rfi-field__error" id="rfi-zip-error" role="alert" hidden>
+                      <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                      <span>Enter a 5-digit ZIP code</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The benefits question only applies to someone who answered
+                   "Yes" above, so it is revealed by initHeroRfi() — same
+                   pattern as step 1's follow-ups. -->
+              <div class="rfi__questions">
+                <fieldset class="rfi__question">
+                  <legend class="rfi__question-legend">
+                    Are you associated with the U.S. Military?
+                  </legend>
+                  <div class="rfi__radios">
+                    <label class="rfi-radio">
+                      <input type="radio" name="military" value="yes" class="rfi-radio__input" />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">Yes</span>
+                    </label>
+                    <label class="rfi-radio">
+                      <input type="radio" name="military" value="no" class="rfi-radio__input" checked />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">No</span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="rfi__question rfi__question--benefits" data-rfi-benefits hidden>
+                  <legend class="rfi__question-legend">
+                    If you enroll at Capella University, do you intend to use education benefits
+                    earned through military service?
+                  </legend>
+                  <div class="rfi__radios">
+                    <label class="rfi-radio">
+                      <input
+                        type="radio"
+                        name="militaryBenefits"
+                        value="yes"
+                        class="rfi-radio__input"
+                      />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">Yes</span>
+                    </label>
+                    <label class="rfi-radio">
+                      <input
+                        type="radio"
+                        name="militaryBenefits"
+                        value="no"
+                        class="rfi-radio__input"
+                      />
+                      <span class="rfi-radio__mark" aria-hidden="true"></span>
+                      <span class="rfi-radio__label">No</span>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+
+              <p class="rfi__consent">
+                By providing your information, you consent to receive occasional special
+                promotional offers and education opportunities by phone, text message and email
+                via automated technology from Capella University. Consent is not required to
+                purchase goods or services. You can always call us at 1.888.227.9897.
+                <a href="https://www.capella.edu/privacy-policy/" target="_blank" rel="noopener">
+                  We respect your privacy</a
+                >.
+              </p>
+
+              <div class="rfi__actions">
+                <button type="button" class="btn btn--outline btn--md rfi__back" data-rfi-back>
+                  Back
+                </button>
+                <button type="submit" class="btn btn--primary btn--md">
+                  I accept, get program details
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </section>
 
