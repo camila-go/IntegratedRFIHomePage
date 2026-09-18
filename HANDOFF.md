@@ -16,10 +16,10 @@ What changed from v1, and where the details are:
 | --- | --- | --- |
 | Featured-story cards | Rebuilt to the **Card Update** Figma (`1440 × 600`, new copy and people, Figma-variable type scale, a portrait that breaks out above the card). Slide 2 is now the **WNBA partnership card**, not an alumni testimonial | §3, §6 |
 | Closing CTA | A single full-bleed TV-spot clip in three encodes, picked by viewport, replacing the three gold-backdrop loops | §12 |
-| Hero | Two-layer red-wall parallax; `initContentParallax` rewritten to be scroll-keyed so the headline no longer rides up over the faces | §3a, §7 |
+| Hero | Rebuilt to the **Phase 3 Hi-Fi** Figma: one pre-cropped photo (no more two-layer wall), left-aligned copy, and the **2-step RFI form integrated into the hero** — including step 1's conditional RN-licence / learning-format questions and the full Dropdown + Input field state matrices. The hero copy no longer floats on scroll — see §7 | §3a, §5, §5a, §5b, §7 |
 | Carousel motion | Scroll-driven, ratcheted card slide-in (the card's text does not animate) | §7 |
 | Nav | Rounded pill hover with full press / keyboard-focus states; scroll shrink now uses hysteresis | §5 |
-| Assets | Carousel portraits re-cut as transparent WebP (2.5 MB of PNGs → 136 KB); hero split into WebP layers | §3 |
+| Assets | Carousel portraits re-cut as transparent WebP (2.5 MB of PNGs → 136 KB); hero is two pre-cropped WebPs, one per breakpoint | §3 |
 
 ---
 
@@ -72,54 +72,67 @@ public/
 
 ## 3. Assets — read before touching images
 
-### 3a. Hero is two layers (for the red-only parallax)
+### 3a. Hero is one photo, pre-cropped per breakpoint
 
-The hero background is split so the red wall can parallax independently of the
-people (who must stay put — see §5 / §7 `initHeroParallax`):
+The hero art is a single frame (subject on the right against a red wall), so
+there is nothing to separate into layers:
 
-- **`hero-red.webp`** — the wall, reconstructed from `hero.png` with the people
-  removed. Sits at the back; this is the layer that moves. `.hero__bg-red`
-  scales it up (`scale(1.5)`) for parallax overshoot room.
-- **`hero-people.webp`** — a transparent cutout of the five people. Sits on top,
-  never moves; keeps the balance transform (`scale(1.07) translateX(-2.6%)`,
-  §5). `fetchpriority="high"` (it's the LCP subject).
-- **`hero.png`** (6.3 MB) is kept only as the **regeneration source** — it is no
-  longer referenced at runtime. `.hero__background` has a `background-color`
-  (wall red) so the hero never flashes black before the layers paint.
+- **`hero-rfi-desktop.webp`** (2560×1217, 153 KB) — used at 769px+.
+- **`hero-rfi-mobile.webp`** (750×1136, 78 KB) — used at ≤768px, via a
+  `<picture>` source. `fetchpriority="high"` on both (the hero is the LCP
+  element), each with its own `media`-gated `<link rel=preload>` so a phone
+  never pulls the desktop frame.
+- `.hero__background` keeps a `background-color` (wall red) so the hero never
+  flashes black before the photo paints.
 
-⚠️ **Don't add a mobile override for the people layer's size.** `object-fit:
-cover` is already right at portrait aspect ratios — at 375×360 it renders the
-2.11:1 source 759px wide, putting the group at ~94% of the hero width with the
-heads ~17% down and the legs cropped at the hero's bottom edge, which is the
-Figma mobile composition. If the mobile hero ever looks wrong, check
-`initContentParallax` (§7) **first**: when it displaces `.hero__content` at
-rest, the headline rides up off the torsos and the CTA lands on the faces, which
-reads as "the people are wrong" when the art is actually fine. Sizing the layer
-to a fixed percentage to compensate makes the people smaller than the design.
+Both crops come from **one 4096×2322 source**, cut at exactly the boxes the
+Figma frames crop to — desktop `28,664 → 2599,1886`, mobile
+`1333,680 → 2417,2322`.
 
-⚠️ **The wall reconstruction must preserve real texture in the margins, not
-just patch the gap.** A first attempt filled the people-shaped gap, then blurred
-the *entire* canvas to hide the seam — which also blurred the margins (the only
-area actually visible beside the people), leaving a flat, textureless field. The
-parallax was technically running but **invisible**, because a human eye can't
-perceive vertical motion in a near-uniform color. Fixed pipeline:
-1. `rembg` (`u2net_human_seg`) for the people cutout.
-2. Fit a smooth quadratic gradient (least-squares, not per-row interpolation —
-   per-row leaves visible horizontal banding, and a local blur-diffusion fill
-   leaves a faint ghost of the silhouette) to the known wall pixels, for the
-   *gap's* base color/vignette only.
-3. Sample real grain/mottling from a people-free strip of the original wall and
-   tile it down the canvas, add to the gap's base color.
-4. Composite: **keep the original pixels everywhere outside the gap** (mask
-   feathered a few px at the edge) — only the actual gap is synthetic. This is
-   what keeps the margins' real texture intact.
+⚠️ **Cut the crop into the asset; don't port Figma's percentage offsets into
+CSS.** Figma expresses these crops as independent width/height percentages on an
+absolutely-positioned `<img>`. Those only hold at the one container aspect they
+were authored for — at 1440×912 the desktop numbers resolve to a 1.32 aspect
+against a 1.76 source and visibly stretch the subject. With the crop baked in,
+`object-fit: cover` plus the anchor below is correct at every width.
 
-Regenerating (if the source art changes): re-run this pipeline against
-`hero.png`, then re-export both layers as WebP (`hero-people` PNG 3 MB → ~200 KB;
-`hero-red` → ~145 KB). The throwaway scripts lived in `/tmp`. After
-regenerating, sanity-check texture is visible in the margins (not just the
-gap) — e.g. crop a clearly-people-free region and eyeball it; a flat/smooth
-result there means the parallax will be invisible again.
+⚠️ **`object-position` must stay anchored, NOT centred.** The subject is
+off-centre in both crops — her head is in the right third of the desktop crop
+(x 68–90%) and at the very top of the mobile one (y 3–34%) — so a centred crop
+walks her face out of frame the moment the container's aspect stops matching the
+image's. With `center center` her face was measurably **cut off entirely at
+768px and 800px wide**, the top of her head was clipped from ~390px up, and she
+was cropped vertically on ultrawide and short-window desktops (1920×700,
+2560×1440, 3440×*). The anchors are:
+
+| | value | what it protects |
+| --- | --- | --- |
+| mobile (≤768) | `center top` | the crop goes width-bound as the width grows past 375 against the fixed 568px band, eating the top — where her head is |
+| desktop (≥769) | `right top` | the crop goes height-bound below ~1270px and on short windows, eating the sides — where her head is; `top` also covers the vertical crop on ultrawide |
+
+**At both design viewports (375×568 and 1920×912) the crop's aspect matches the
+container's exactly**, so there is zero slack and the anchor is inert — the
+composition Figma specified is untouched. It only engages off-design. Verified
+across 39 container sizes: her face is fully in frame in all of them. The only
+residual is the right edge of her *hair* below ~361px wide (≤76 source px, face
+still clear by 43px), which an aspect-preserving band height under 375 would
+remove if it ever matters.
+
+⚠️ **Keep `.hero__bg-photo`'s scale as small as the parallax needs.** At the
+design viewports the crops match the container's aspect, so `cover` leaves no
+slack and that scale is the *only* source of parallax travel room — but every
+bit of zoom crops tighter than the framing Figma composed. It is `scale(1.05)`
+(2.38% per edge) against an **8px** shift cap in `initHeroParallax`. Because
+`object-position` anchors the image's **top** edge, that 2.38% — ~13.5px on the
+568px mobile band, the shortest container it runs on — is the whole budget above
+the image; measured worst-case margin at full drift is 6.2px. Raising either
+number without the other exposes the top edge (12px left only ~2px of margin).
+
+Regenerating (if the source art changes): crop the two boxes above out of the
+source with PIL and save as WebP at quality 82, sizes as listed. The prior
+two-layer hero (`hero-red.webp` + `hero-people.webp`, a reconstructed wall and a
+transparent people cutout) is **no longer referenced** — see §8 for the orphaned
+files.
 
 - **Cache-busting query strings:** Some `<img src>` values carry `?v=N`. These
   were bumped each time an asset on disk was replaced to defeat browser/Vite
@@ -175,8 +188,9 @@ don't go hunting for the code that uses them:
 
 | File(s) | Size | Note |
 | --- | --- | --- |
-| `hero-base.png` | 12.2 MB | Superseded by the two WebP hero layers (§3a). |
-| `hero.png` | 6.1 MB | **Keep** — the regeneration source for those layers. |
+| `hero-base.png` | 12.2 MB | Superseded, twice over — first by the two-layer WebP hero, then by the Phase 3 crops (§3a). |
+| `hero.png` | 6.1 MB | Regeneration source for the **old** two-layer hero. No longer needed by anything the page loads. |
+| `hero-red.webp`, `hero-people.webp` | ~346 KB | The old two-layer hero (reconstructed wall + people cutout), orphaned by the Phase 3 single-photo hero (§3a). |
 | `footer-partner-{sei,strayer,jwmi}.svg` | ~30 KB | **In use** by the footer partner carousel (§13). |
 | `footer-partner-devmountain.svg` | ~8 KB | **⚠️ Mislabelled — this is the SOPHIA wordmark, not Devmountain.** Don't wire it up by filename. |
 | `footer-partner-sophia.svg` | ~1 KB | Sophia droplet **mark only**, not the wordmark lockup. |
@@ -185,9 +199,10 @@ don't go hunting for the code that uses them:
 | `cta-1/2/3.png` | ~2.2 MB | Legacy, see above. |
 | `carousel-portrait-alumni.webp` | ~40 KB | Dr. Compton Moore — the alumni slide became the WNBA partnership card (§6). |
 
-Everything except `hero.png` is safe to delete; that's ~14.9 MB of the repo's
-~40 MB of assets. Left in place because a few are plausible future art rather
-than clearly dead.
+All of these are now safe to delete — including `hero.png`, which only existed to
+regenerate a hero the page no longer has. That's ~21 MB of the repo's ~40 MB of
+assets. Left in place because a few are plausible future art rather than clearly
+dead, and because the Phase 3 hero is still under review.
 
 Already deleted, so don't go looking for them: the three gold-backdrop clips
 (`videos/{leftLady,middleMan,rightLady}_loop.{webm,mp4}`) and their
@@ -207,10 +222,10 @@ Mobile-first base styles, with these override breakpoints (see `styles.css`):
 | `max-width: 640px` | Phone: program-finder chips become a **2×2 grid** (`minmax(0,1fr) minmax(0,1fr)` — plain `1fr` won't shrink below the chips' content width and overflows; reduced chip `padding-inline` so labels fit), stats grid single-column |
 | `max-width: 1023px` | **Phone/tablet carousel layout** (fixed `294 × 583` aspect card, absolutely-positioned elements scaled via container query) |
 | `max-width: 1024px` | Tablet: hamburger nav, **program-finder top is the row layout** (title beside 2×2 chips) |
-| `min-width: 641px and max-width: 1199px` | **Tablet/large-phone hero**: floor raised to **520px** (capped `--hero-height-tablet-max` = 640) — the headline is ~98px here, so a short hero would let it ride onto the faces; the 520 floor keeps it on the torsos (finder scrolls below the fold on short viewports, like mobile) |
-| `min-width: 768px` | Tablet hero padding + a tighter `--hero-fold-reserve` (the nav is 72px here, not 112) |
+| `min-width: 769px` | **The hero's own breakpoint** — deliberately 769, not 768, so it lines up exactly with the `(max-width: 768px)` query on the `<picture>` mobile source. Switches the hero from the mobile stack (photo band + solid dark form panel) to the desktop overlay (full-bleed photo, transparent form, row-layout stepper and fields) |
+| `min-width: 769px and max-width: 1199px` | **Tablet hero**: capped at `--hero-height-tablet-max` (760px), and step 2's five text inputs wrap to a 2-up grid — in one row they'd be ~150px each |
 | `min-width: 1024px` | **Wide carousel layout** (`1440 × 600` card; the faculty portrait and the phone overflow above the card top) |
-| `min-width: 1200px` | Desktop refinements: hero capped at **755px** (`--hero-height`, Figma) + 4-across program-finder chips, content-band bg crop, etc. |
+| `min-width: 1200px` | Desktop refinements: 4-across program-finder chips, content-band bg crop, etc. (the hero's sizing is owned by its own 769px+ block, not this one) |
 | `max-width: 1280px` / `min-width: 1920px` | `--page-gutter` adjustments only (in `tokens.css`) |
 
 ⚠️ **The 1023 / 1024 boundary is load-bearing for the carousel.** The phone and
@@ -287,9 +302,12 @@ The same "invert" language runs through the rest of the UI — a **filled** rest
 state becomes an **outlined** hover state, not a darker fill. Two places
 implement it:
 
-- **`.btn--white`** (hero *Get started*, both *Apply now* buttons): solid white
-  → transparent with a 2px white ring and white text
+- **`.btn--white`** (both *Apply now* buttons): solid white → transparent with a
+  2px white ring and white text
   ([hero `2001:456`](https://www.figma.com/design/mqSJTp9qWvsAU8n08FFlk9/UI-Elements-for-Homepage-Proto--Copy-?node-id=2001-448)).
+  The hero's *Get started* button used to be the third usage — the Phase 3 hero
+  replaced it with the RFI form, whose own pills are `.btn--primary` (red) and
+  `.btn--outline` (the step-2 *Back*).
   The rule lives on the variant so all three behave identically. ⚠️ It assumes a
   **dark or photo backdrop** — true of all three current usages. A white button
   on a light background would need its own hover.
@@ -411,33 +429,201 @@ Gotchas:
 - Press feedback (the only motion) is disabled under `prefers-reduced-motion`;
   hover and focus colours still apply so nothing loses its affordance.
 
-### Hero height is "fill the fold" (keeps the program finder above the fold)
+### Hero height: capped on desktop, content-driven on mobile
 
-The hero's `min-height` is **not** a fixed value — it's
-`max(<floor>, min(<cap>, calc(100svh - var(--hero-fold-reserve))))`. The hero
-fills the viewport minus the sticky header above it and the program-finder top
-row below it, so the program finder is always above the fold. `--hero-fold-reserve`
-is tuned per breakpoint (≈ header + program-finder top area). The cap/floor use
-the Figma height tokens in `tokens.css`: `--hero-height` (755, desktop ≥1200px
-cap), `--hero-height-tablet-max` (640, 769–1199px cap), `--hero-height-mobile`
-(360, the `<769px` floor). On the shortest phones the 360 floor pushes the
-(4-chip) program finder a few px below the fold — fine on a scrolling mobile
-page and matches the design. Uses `svh` so mobile browser chrome doesn't break
-it. If you change the header height, re-tune the reserve values (search
-`--hero-fold-reserve`); to change the design heights, edit the tokens.
+The two breakpoints size the hero on completely different principles, and the
+CSS here is **mobile-first** (the reverse of the rest of the file) because mobile
+is the case with structure:
 
-**Image crop is centered (`object-position: center center`) at every width** —
-the 5 people are horizontally centered in the source with headroom above, so
-centering keeps heads uncropped even on ultra-wide viewports (e.g. 2560px) while
-the bottom-anchored headline still lands on the torsos. There are intentionally
-**no per-breakpoint `object-position` overrides** — a non-centered crop clipped
-heads on wide viewports. If you ever reintroduce one, re-check head-cropping at
-2560px-wide and headline-on-faces at the short desktop heights (1920×1000).
+- **`<769px`** — no `min-height` and no `overflow: hidden` at all. The photo is
+  a fixed `--hero-photo-mobile` (568px) band pinned to the top of the hero, and
+  the RFI panel sits below it in normal flow with its own solid
+  `--color-uni-black` fill covering whatever of the band it overlaps. So the hero
+  is exactly as tall as its content, and it grows when step 2 (which is taller)
+  is showing. Nothing to tune.
+- **`769px+`** — `min-height: min(var(--hero-height), calc(100svh - var(--hero-fold-reserve)))`,
+  i.e. capped at the Figma height (912px) and shrinking on shorter viewports.
+  `--hero-fold-reserve` is just the header (128px = 40 utility + 88 nav); the
+  tablet block swaps the cap for `--hero-height-tablet-max` (760px). Uses `svh`
+  so mobile browser chrome doesn't break it.
 
-> Note: the crop centering + balance transform now live on **`.hero__bg-people`**
-> (the cutout layer), not the base `.hero__bg-image`, since the hero is split
-> into two layers (§3a). The `.hero__bg-red` wall layer is centered + scaled for
-> parallax and has no balance translate.
+⚠️ **The reserve no longer accounts for the program finder.** It used to: the
+hero was sized to keep the finder above the fold. The RFI form is now *in* the
+hero, so the form is the thing that has to be reachable, and capping the hero at
+the design height is what achieves that. Don't re-add finder-sized reserve
+values — that shrinks the hero and squeezes the form.
+
+The hero content is **top-anchored and left-aligned** in the same
+`min(--max-content, 100% - 2*--page-gutter)` measure `.page-container` gives the
+rest of the page, which is what puts it at Figma's `x=240` on a 1920 frame.
+
+The photo takes a **different `object-position` per breakpoint** (`center top`
+on mobile, `right top` on desktop) because the subject is off-centre in both
+crops. This is load-bearing, not tuning — centred, her face leaves the frame
+entirely at some common widths. See §3a for the measurements before changing it.
+
+### 5c. The hero's height is reserved so the photo can't move
+
+`reservePanelHeight()` in `initHeroRfi()` measures **both panels with every
+conditional revealed**, takes the taller, and pins both to it with `min-height`.
+
+This is not cosmetic. The photo is `object-fit: cover`, so its crop is a function
+of the **container's aspect** — and the hero grows past its height cap whenever
+the form needs more room. That made every step change and every conditional
+reveal re-crop the photo: at 1280×800 the hero swung **672 → 783px** and the
+visible slice of the image slid **321 source px sideways** as the form was filled
+in. The subject visibly jumped. With the reservation the hero's height depends
+only on the viewport, so the crop is byte-identical in all six states (step 1
+bare / with follow-ups / with the disqualifier, step 2, step 2 + benefits, and
+back again — verified). It also stops the buttons moving under the cursor on a
+step change, and it is closer to the design, whose hero is a fixed height.
+
+⚠️ **Desktop only** (`min-width: 769px`). Below that the photo is a fixed 568px
+band whose crop already doesn't depend on the form at all, so reserving buys
+nothing there and costs a lot — the tallest state is ~911px, which would leave
+step 1 with hundreds of px of empty dark panel.
+
+⚠️ It runs on **init and resize only**, never from a `ResizeObserver` — it
+mutates the very heights such an observer would be watching.
+
+### 5a. Conditional questions
+
+Three question groups are **hidden at rest** and revealed by `initHeroRfi()`.
+The first two carry annotations in Figma (`345:27092`) that are the spec:
+
+| Step | Block | Shows when | Source |
+| --- | --- | --- | --- |
+| 1 | RN licence (Yes/No) | area of study is **nursing** | Figma: "Only shows if nursing is selected" |
+| 1 | Learning format (GuidedPath / FlexPath / both) | a **specialization** is picked and its area is in `FORMAT_AREAS` | Figma: "GuidedPath/FlexPath programs only" |
+| 2 | Military education benefits (Yes/No) | the military question is answered **Yes** | requested directly, matching the paired-question layout |
+
+Each one **clears its own answer when it closes**, so a stale "Yes"/"No" can't
+be submitted for someone the question no longer applies to. The military pair
+uses the same row container and 371/770 measure as step 1's pair
+(`.rfi__questions` / `.rfi__followups`), stacking below 1200px.
+
+⚠️ **`.rfi__question--formats` needs its `max-width: min(770px, 65.8%)`.** The
+32px gap between the three learning-format radios is exactly per Figma — but the
+radios are Fill columns, so how loose the row *reads* is set by the column width,
+not the gap. Two things were inflating it: the group stretched across the whole
+row whenever the RN question was hidden (the common case — 339px columns, so the
+options read as ~190px apart), and the hero's form is 1440 wide against the
+component's 1170, which gave 295px columns at 1920 instead of 235. The cap is the
+component's absolute 770px with its 770/1170 share as the fallback below that, so
+the row now measures **770 / 235 / 32 at 1920 — identical to Figma** — in both
+states. If the row ever looks too airy again, measure the column width before
+touching the gap.
+
+⚠️ **`FORMAT_AREAS` in `main.js` is a stand-in, not real data.** The true gate is
+per-**program**, not per-area, and belongs on the program record. It is written
+as an explicit `Set` so the assumption is visible in the diff rather than buried
+in a boolean — replace it, don't extend it.
+
+**Nursing + "No" is a dead end, not a validation error.** It reveals
+`.rfi__disqualifier` ("…require a current, unrestricted RN license. Please select
+a different area of study to continue.") **and** blocks step 2 — the copy only
+makes sense if the form actually refuses to advance. Leaving nursing clears the
+RN answer, so a stale "No" can't keep that block alive for another area.
+
+These are the blocks the **hero mockup had switched off** (`Frame 9`, hidden), so
+an implementation built from the hero node alone silently omits them. The
+canonical source is the Form component, `variation=PMLP 2 step` (`345:30649`).
+
+### 5d. The three step-1 dropdowns are a gated chain
+
+`syncChain()` in `initHeroRfi()`. Each link is disabled until the one before it
+is answered, so the row can only be worked left to right:
+
+```
+degree  ──enables──▶  area of study  ──enables──▶  specialisation
+```
+
+- **Clearing a link tears down everything downstream.** Setting degree back to
+  its placeholder empties *and* re-disables both area and specialisation;
+  changing the area rebuilds the specialisation options from `SPECIALIZATIONS`.
+  Without that, a stale specialisation could be submitted for an area that no
+  longer applies.
+- **The option list is rebuilt only when it actually changes**, keyed on
+  `specSelect.dataset.forArea`. `syncChain()` runs on *every* select change, so
+  an unconditional rebuild would wipe a valid specialisation the moment the user
+  touched anything else.
+- **The step-1 gate only flags fields that are enabled.** A gated link is empty
+  *because* its predecessor is — painting it red would point at a control the
+  user can't use and bury the field that actually needs them. The gate now walks
+  them forward one field at a time (verified: degree → area → specialisation,
+  focus following each).
+
+### 5b. Field states are a component contract, not decoration
+
+`.rfi-field` implements the EC **Dropdown** (`329:14428`) and **Input field**
+(`264:4641`) components at `size=med`. Nested parts, because the error message
+attaches to the input's bottom edge as one continuous object rather than sitting
+loose beneath it:
+
+```
+.rfi-field            the column
+  .rfi-field__shell   the bordered object
+    .rfi-field__box   the 48px input row — the border lives HERE
+      .rfi-field__hint    12px label (selects only)
+      .rfi-field__control the select / input
+      .rfi-field__caret   the chevron (selects), absolute, centred in the BOX
+      .rfi-field__check   the success tick (inputs), absolute
+    .rfi-field__error the attached message bar
+```
+
+⚠️ **The caret must be its own element, not a `background-image` on the
+`<select>`.** Figma (`329:15167`) makes the chevron a flex *sibling* of the text
+column with `items-center` on the 48px row, so it is centred in the **box**. As
+a background on the select it centres on the select's own line box — and since
+the select is only the *value* line (the hint is a separate label above it), that
+put the caret **8.2px below the box's centre**: visibly low, and it tracked the
+text rather than the field. `.rfi-field__box--select` reserves the 39px Figma
+leaves for it (16px padding + 15px icon + 8px gap) on the BOX, so the hint is
+bounded too — on a narrow column it would otherwise run underneath. Measured
+after the fix: 0.00px offset from centre at 375, 1200 and 1440.
+
+(The `.program-finder__select` below the hero still uses a background-image
+chevron. That is correct *there* — it is a single-line select with no hint, so
+its line box and its field box are the same thing.)
+
+The component also defines a 12px **helper-text** line below the shell. It is
+deliberately **not** implemented: each dropdown already carries its own 12px
+hint *inside* the box, and a second grey line under each one was just noise. To
+bring it back, add `.rfi-field__help` inside `.rfi-field` after the shell (it
+was removed in this form, not in the design).
+
+| State | Dropdown | Input field |
+| --- | --- | --- |
+| inactive | 1px `#adadad`, 2px radius | same |
+| focused | 2px `#0f7bd9` **ring** (outline, not a border swap — nothing reflows) | same |
+| success | — (no such state) | `check` icon `#b0e8c1`, neutral border kept |
+| error | border → `#ffa8a8`, bottom corners squared, message bar below | same |
+| disabled | content (hint + value + caret) at 0.55, **border kept** | — (inputs are never gated) |
+
+Figma has **no disabled variant** for either component, so `.rfi-field--disabled`
+follows what already shipped for the specialisation dropdown: dim the content and
+leave the border at full strength, so the field still reads as a field. The class
+is set by `syncChain()` alongside the `disabled` attribute — see §5d.
+
+⚠️ **The two components disagree in Figma on the dark error colours.** The
+Dropdown's dark variant points at `color/on/status/error/…-dark` (line `#ff3b3b`,
+text `#ffa8a8`); the Input field's points at `gl-color/gl-on/status/error/…`
+(line `#ffa8a8`, text `#ffffff`). The tokens in `tokens.css` use the second set
+for both, so the two look like one system inside a single form. **This is a
+design decision that hasn't been made yet** — worth resolving in the library
+before it spreads.
+
+⚠️ **The hero mockup sets the dropdown hint to 8px; the component says 12px.**
+12px is used here (it's the library value, and it fits the 48px box once the
+line-height is tightened to 1.2). Likewise the mockup's "Request program
+information" is 28px against the component's 32px — the hero's 28px is kept,
+since the hero is what's being built.
+
+⚠️ **The Font Awesome kit script replaces every `<i>` with an `<svg>`.** It
+carries custom classes across but obviously not the tag, so icon rules must key
+off a class (`.rfi-field__error-icon`, `.rfi-field__check`) and never
+`.rfi-field__error i` — an element selector silently stops matching the moment
+the kit loads.
 
 ---
 
@@ -543,8 +729,9 @@ All live in `main.js`, initialized on `DOMContentLoaded`. Every one is
 | `initCardScroll()` | **Scroll-driven** (scrubbed, not timed) slide-in for the carousel cards: their `translate` tracks the carousel's position in the viewport, spread over ~90% of a viewport height so it's slow. **Ratcheted** — it only ever moves toward settled, so scrolling back up never pushes the cards out again. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
 | `initCountUp()` | Animates the stats numbers (40 / 80 / 1,530+ / 63%) counting up with a custom cubic-bezier ease. Preserves prefixes/suffixes/grouping. | IntersectionObserver (threshold 0.4) |
 | `initParallax()` | Translates the content-band background image on scroll for depth. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
-| `initHeroParallax()` | The ONLY motion on the hero's red wall (a 13s ambient Ken Burns zoom/pan was removed — it read as the wall moving on its own). Parallax on the **red wall only** (`.hero__bg-red`) — the people layer never moves. Driven off `window.scrollY` so it responds from the first scroll pixel; drifts the wall down up to 70px. See §3a + §5. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
-| `initContentParallax()` | Floats `.hero__content` (factor **0.6**) and `.program-finder` (0.2) up as you scroll, layering them over the hero art. **Driven off `window.scrollY`, NOT off each element's `getBoundingClientRect().top`** — a viewport-relative formula is already non-zero for anything on screen at load, which shoved the hero headline ~100px above its laid-out position and put the CTA over the faces. Must read 0 at `scrollY === 0`. The hero's travel is capped at its own `offsetTop - 16` because `.hero` is `overflow: hidden`: the mobile hero only leaves ~117px of room before the headline would clip, versus ~170 on desktop. Don't replace that with a fixed cap. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
+| `initHeroParallax()` | The ONLY motion on the hero photo (a 13s ambient Ken Burns zoom/pan was removed — it read as the wall moving on its own). The hero is one frame now, so the **whole photo** (`.hero__bg-photo`) drifts together. Driven off `window.scrollY` so it responds from the first scroll pixel; drifts it down up to 12px. Overshoot comes only from the CSS `scale(1.05)` — see §3a before changing either number. | `scroll`/`resize`, throttled with `requestAnimationFrame` |
+| `initContentParallax()` | Floats `.program-finder` (factor 0.2) up as you scroll, **capped so it can never cover the hero form** (§7a). **Driven off `window.scrollY`, NOT off each element's `getBoundingClientRect().top`** — a viewport-relative formula is already non-zero for anything on screen at load, which shoved the hero headline ~100px above its laid-out position. Must read 0 at `scrollY === 0`. ⚠️ **It deliberately skips `.hero__content` whenever `.hero__rfi` is present** (i.e. always, now): the copy would slide up away from a form that stays put, opening a growing gap between a heading and the fields it introduces. The form itself is excluded from every parallax on purpose — drifting selects and inputs are miserable to use. The old `heroContent` branch and its `offsetTop - 16` clip cap are still in the function for whenever the hero goes back to being purely decorative. | `scroll`/`resize`, throttled with `requestAnimationFrame`; plus a `ResizeObserver` for the cap |
+| `initHeroRfi()` | The hero RFI's step 1 ⇄ step 2 swap (toggles `hidden` on `[data-rfi-panel]`, syncs `.rfi__step--current` + `aria-current` on the stepper); the area-of-study → specialization cascade, which reads the **same `SPECIALIZATIONS` map the program finder uses** so the two can't drift apart; the **conditional step-1 follow-ups** (§5a); and **per-field error/success states** (§5b). Step 1 gates itself rather than calling `reportValidity()`, because the form is `novalidate` (so "Learn program details" — a next, not a submit — doesn't fire browser bubbles); the gate covers the three selects, any *visible* radio group, and the nursing dead end. Every step change focuses with `{ preventScroll: true }`: the panels are different heights, so a plain `focus()` scrolls the page to chase the field and drags the headline off screen. | direct listeners on the next/back/submit buttons, plus `change` on the selects/radios and `blur`/`input` on the text fields |
 | Card hover scale | CSS-only `transform: scale(1.02)` on `.stats-section__program:hover` (replaced the removed VanillaTilt 3D tilt — it caused a "jiggle"). Kept deliberately, on top of the card's white hover fill. Disabled under reduced-motion. | hover |
 
 > **Removed:** `initTilt()` / VanillaTilt. The cursor-following 3D tilt on the
@@ -600,6 +787,46 @@ All live in `main.js`, initialized on `DOMContentLoaded`. Every one is
   `.content-band__bg` is offset (`top: var(--content-bg-top, 26%)`) with a top
   mask fade — the area above stays page-black. Adjust `--content-bg-top` to move
   the desk's start up/down.
+
+### 7a. The program finder's drift is capped on the hero form's clearance
+
+`.program-finder` drifts **up**, so it rides over the hero's **bottom** edge.
+That edge used to be spare photo. It now holds the RFI form's action buttons, and
+the full 120px travel covered them at every breakpoint — by 26px on desktop
+step 1, 50px on step 2, and 72px on mobile, where the only slack is the panel's
+48px bottom padding.
+
+`measureFinderRoom()` now caps the travel at the empty space actually below the
+form: `hero.offsetHeight − actionsBottom − 16`. It measures from
+`.rfi__panel:not([hidden]) .rfi__actions` — the buttons are the real constraint,
+and measuring the panel's own box instead would throw away the mobile panel's
+bottom padding, which is legitimately coverable. `offsetTop`/`offsetHeight` are
+layout values, so they ignore the `translate` this function applies and the read
+can't feed back on itself.
+
+Result: a guaranteed **16px minimum clearance** everywhere, with the parallax
+still running at full strength where there's room (step 1 with no follow-ups
+showing reaches the whole 120px; step 2 with the benefits question caps at 48).
+
+⚠️ **The clearance is measured every frame inside `update()`, never cached.**
+Two attempts at caching it both shipped stale values:
+
+1. A step-change hook fired *before* the conditional reveals had reflowed — 6px
+   stale, eating a third of the gutter.
+2. A `ResizeObserver` on the hero and form fixed that, but then
+   `reservePanelHeight()` (§5c) pinned the hero to a constant height — so
+   stepping 1 → 2 moved the buttons down inside it while **nothing changed
+   size**. The observer is blind to that, and the finder covered the step-2
+   buttons by 56px. Revealing the benefits question did the same thing inside a
+   pinned panel, for another 8px.
+
+Enumerating the triggers is a losing game, so the value is simply recomputed
+each frame. The reads are `offsetTop`/`offsetHeight` on three elements and they
+all happen before the function's only write, so there is no read-write thrash.
+The `ResizeObserver`, the `rfi:stepchange` event and a delegated `change`
+listener remain, but only to **re-run** `update()` when the layout shifts while
+the page isn't scrolling — otherwise a shrinking clearance wouldn't apply until
+the next scroll.
 
 ---
 
@@ -696,7 +923,9 @@ browsers:
 | Hero height / above-the-fold reserve | `--hero-fold-reserve` + the `min-height` `max(floor, min(cap, …))` on `.hero` (§5) |
 | Where the desk background starts | `--content-bg-top` on `.content-band__bg` (§7) |
 | Parallax strength | amplitude factor in `initParallax()` + CSS overshoot (§7) |
-| Hero red-wall parallax (amount / cap) | `initHeroParallax()` in `js/main.js` (factor `0.25` + 70px cap, driven off `window.scrollY`); overshoot = `scale()` on `.hero__bg-red` — sized for the **shortest** hero across breakpoints (mobile's 360px floor is worst-case for overshoot, not desktop — see §3a) |
+| Hero photo parallax (amount / cap) | `initHeroParallax()` in `js/main.js` (factor `0.08` + **8px** cap, driven off `window.scrollY`); overshoot = `scale(1.05)` on `.hero__bg-photo`, and because `object-position` pins the top edge that overshoot is the entire budget — sized for the **shortest** container it runs on (mobile's 568px photo band, not desktop — see §3a) |
+| Which part of the photo stays in frame | `object-position` on `.hero__bg-image` (`center top`) and its `769px+` override (`right top`) — §3a. Centring it crops her face off at several common widths |
+| Hero RFI copy, fields, or step behaviour | `index.html` `.hero__rfi` (markup), `.rfi*` / `.rfi-field*` / `.rfi-radio*` blocks in `css/styles.css`, `initHeroRfi()` in `js/main.js`. The specialization options come from `SPECIALIZATIONS` at the top of `main.js` — shared with the program finder |
 | Hero layers / regenerate the cutout + wall | `.hero__bg-red` / `.hero__bg-people` in `index.html` + CSS; regen pipeline in §3a |
 | Sticky header offsets | `.utility-bar` / `.main-nav` `top`/`z-index` (§5) |
 | Program-finder dropdown options | `SPECIALIZATIONS` map in `js/main.js` |

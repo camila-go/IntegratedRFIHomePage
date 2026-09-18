@@ -55,10 +55,11 @@ animation:
 | Function | Responsibility |
 | --- | --- |
 | `initCarousel` | Featured-story carousel — dots, swipe, keyboard, card reveal |
+| `initHeroRfi` | The hero's integrated 2-step RFI form — step swap, stepper state, the gated Degree→Area→Specialization chain, the conditional RN-licence / learning-format questions, and per-field error/success/disabled states |
 | `initProgramFinder` | Degree-level chips + dependent Area/Specialization selects |
 | `initRevealAnimations` / `initTextReveal` | Fade-up on scroll; per-word masked heading reveal |
 | `initCountUp` | Stat numbers counting up |
-| `initParallax` / `initHeroParallax` / `initContentParallax` / `initCardScroll` | Scroll-driven motion (content band, hero red wall, hero + program-finder drift, carousel card slide-in) |
+| `initParallax` / `initHeroParallax` / `initContentParallax` / `initCardScroll` | Scroll-driven motion (content band, hero photo, program-finder drift, carousel card slide-in). The hero *copy* no longer drifts — it holds the RFI form |
 | `initNavScroll` / `initMobileNav` | Sticky-nav shrink; hamburger panel |
 | `initMegaMenu` / `initMobileMenuTree` | Desktop dropdown positioning; the mobile panel's nested menus |
 | `initCtaVideos` | Background video in the CTA band — encode tier, lazy-load, pause offscreen |
@@ -73,8 +74,9 @@ of this project used Figma MCP asset URLs, which expire after ~7 days.
 Two asset contracts are load-bearing and documented in `HANDOFF.md` §3 — read it
 before replacing them:
 
-- **`hero-red.webp` + `hero-people.webp`** — the hero is split into two layers so
-  the red wall can parallax while the people stay still.
+- **`hero-rfi-desktop.webp` + `hero-rfi-mobile.webp`** — the hero photo, cut from
+  one source into a per-breakpoint crop and picked by `<picture>`. The crop is
+  baked into the asset on purpose; see HANDOFF §3a before re-exporting.
 - **`carousel-portrait-faculty.webp`** — a pre-cut transparent portrait sized to
   the carousel card, and intentionally *taller* than the card because the figure
   breaks out above its top edge.
@@ -100,5 +102,5 @@ before replacing them:
 ## Browser notes
 
 - Layout is mobile-first; the wide carousel layout takes over at `≥1024px` and
-  the desktop hero at `≥1200px`.
+  the desktop hero at `≥769px` (769, not 768, to match the `<picture>` query).
 - Every animation has a `prefers-reduced-motion: reduce` fallback.

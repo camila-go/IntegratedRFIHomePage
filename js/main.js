@@ -199,6 +199,370 @@ function initCarousel() {
   }
 }
 
+// Hero RFI. Owns four things:
+//  1. the step 1 <-> step 2 swap and the stepper's current-step state;
+//  2. the area-of-study -> specialization cascade, off SPECIALIZATIONS (the
+//     same source the program finder uses, so the two can't drift apart);
+//  3. the conditional step-1 follow-ups — RN licence (nursing only) and
+//     learning format (GuidedPath/FlexPath programs only) — plus the
+//     nursing-without-a-licence dead end;
+//  4. per-field error/success states, matching the design system's states for
+//     the Dropdown and Input field components.
+function initHeroRfi() {
+  const form = document.getElementById('rfi-form');
+  if (!form) return;
+
+  const panels = [...form.querySelectorAll('[data-rfi-panel]')];
+  const steps = [...form.querySelectorAll('[data-rfi-step]')];
+  const next = form.querySelector('[data-rfi-next]');
+  const back = form.querySelector('[data-rfi-back]');
+  const degreeSelect = document.getElementById('rfi-degree');
+  const areaSelect = document.getElementById('rfi-area');
+  const specSelect = document.getElementById('rfi-specialization');
+  const benefitsGroup = form.querySelector('[data-rfi-benefits]');
+  const followups = form.querySelector('[data-rfi-followups]');
+  const rnGroup = form.querySelector('[data-rfi-rn]');
+  const formatsGroup = form.querySelector('[data-rfi-formats]');
+  const disqualifier = form.querySelector('[data-rfi-disqualifier]');
+  if (!panels.length || !steps.length) return;
+
+  // --- field state helpers -------------------------------------------------
+  // `error` and `success` are the design system's states (see .rfi-field--error
+  // / --success). A field can be neither, but never both.
+  const fieldOf = (control) => control.closest('[data-rfi-field]');
+
+  function setError(control, on) {
+    const field = fieldOf(control);
+    if (!field) return;
+    field.classList.toggle('rfi-field--error', on);
+    if (on) field.classList.remove('rfi-field--success');
+    const bar = field.querySelector('.rfi-field__error');
+    if (bar) bar.hidden = !on;
+    control.setAttribute('aria-invalid', String(on));
+  }
+
+  function setSuccess(control, on) {
+    const field = fieldOf(control);
+    if (!field || field.classList.contains('rfi-field--error')) return;
+    field.classList.toggle('rfi-field--success', on);
+  }
+
+  // --- conditional follow-ups ---------------------------------------------
+  // Figma annotates the RN question "Only shows if nursing is selected" and the
+  // whole row "GuidedPath/FlexPath programs only".
+  // ⚠️ FORMAT_AREAS is a stand-in. The real gate is per-PROGRAM, not per-area —
+  // it belongs on the program record in the CMS. Listing areas here keeps the
+  // conditional honest and visible instead of hiding a guess in a boolean.
+  const FORMAT_AREAS = new Set([
+    'business',
+    'education',
+    'health-sciences',
+    'nursing',
+    'psychology',
+    'technology',
+  ]);
+
+  const rnAnswer = () => form.querySelector('input[name="rnLicense"]:checked')?.value || '';
+  const isNursing = () => areaSelect?.value === 'nursing';
+  // Nursing without an unrestricted RN licence is a dead end, not a validation
+  // error — the copy tells them to pick a different area of study.
+  const isDisqualified = () => isNursing() && rnAnswer() === 'no';
+
+  function syncFollowups() {
+    if (!followups) return;
+    const showRn = isNursing();
+    const showFormats = Boolean(specSelect?.value) && FORMAT_AREAS.has(areaSelect?.value);
+
+    if (rnGroup) rnGroup.hidden = !showRn;
+    if (formatsGroup) formatsGroup.hidden = !showFormats;
+    followups.hidden = !showRn && !showFormats;
+
+    // Leaving nursing clears the RN answer, so a stale "No" can't keep the
+    // disqualifier (and the block on step 2) alive for a different area.
+    if (!showRn) {
+      form.querySelectorAll('input[name="rnLicense"]').forEach((radio) => {
+        radio.checked = false;
+      });
+    }
+    if (!showFormats) {
+      form.querySelectorAll('input[name="format"]').forEach((radio) => {
+        radio.checked = false;
+      });
+    }
+    if (disqualifier) disqualifier.hidden = !isDisqualified();
+  }
+
+  // --- step 1 gate ---------------------------------------------------------
+  // The form is `novalidate` so "Learn program details" (a next, not a submit)
+  // doesn't fire browser bubbles; step 1 reports its own problems instead.
+  function step1Complete() {
+    let complete = true;
+    [degreeSelect, areaSelect, specSelect].forEach((select) => {
+      if (!select) return;
+      const missing = !select.value;
+      if (missing) complete = false;
+      // Only mark what the user can actually act on. A gated link in the chain
+      // is empty *because* the one before it is — painting it red would point
+      // at a control they can't use and hide the field that really needs them.
+      setError(select, missing && !select.disabled);
+    });
+
+    // A visible radio group is required; a hidden one is not.
+    if (rnGroup && !rnGroup.hidden && !rnAnswer()) complete = false;
+    if (formatsGroup && !formatsGroup.hidden && !form.querySelector('input[name="format"]:checked')) {
+      complete = false;
+    }
+    if (isDisqualified()) complete = false;
+    return complete;
+  }
+
+  // --- keep the hero a constant height ------------------------------------
+  // The photo is `object-fit: cover`, so its crop is a function of the
+  // CONTAINER'S ASPECT. The hero grows past its height cap whenever the form
+  // needs more room, which means every step change and every conditional reveal
+  // was re-cropping the photo: at 1280x800 the hero swung 672 -> 783px and the
+  // visible slice of the image slid 321 source px sideways as you filled the
+  // form in. The subject visibly jumped.
+  //
+  // Fix: reserve the height of the TALLEST state up front — both panels with
+  // every conditional revealed — and pin both panels to it. The hero's height
+  // then depends only on the viewport, never on form state, so the photo holds
+  // still. It also stops the buttons moving under the cursor on a step change.
+  // Reserving is closer to the design anyway: Figma's hero is a fixed height.
+  // Desktop only. Below 769px the photo is a FIXED 568px band whose crop does
+  // not depend on the form at all (verified: zero drift across every state), so
+  // reserving there buys nothing and costs a lot — the tallest state is ~911px,
+  // which would leave step 1 with hundreds of px of empty dark panel.
+  const RESERVE_AT = window.matchMedia('(min-width: 769px)');
+
+  function reservePanelHeight() {
+    if (!RESERVE_AT.matches) {
+      panels.forEach((p) => {
+        p.style.minHeight = '';
+      });
+      return;
+    }
+    const conds = [
+      ...form.querySelectorAll(
+        '[data-rfi-followups],[data-rfi-rn],[data-rfi-formats],[data-rfi-benefits],[data-rfi-disqualifier]'
+      ),
+    ];
+    const panelWasHidden = panels.map((p) => p.hidden);
+    const condWasHidden = conds.map((c) => c.hidden);
+
+    // Measure the worst case: no reservation in place, everything revealed.
+    panels.forEach((p) => {
+      p.style.minHeight = '';
+    });
+    conds.forEach((c) => {
+      c.hidden = false;
+    });
+
+    let tallest = 0;
+    panels.forEach((p) => {
+      p.hidden = false;
+      tallest = Math.max(tallest, p.offsetHeight);
+      p.hidden = true;
+    });
+
+    // Restore, then pin. All synchronous, so nothing is painted mid-measure.
+    panels.forEach((p, i) => {
+      p.hidden = panelWasHidden[i];
+    });
+    conds.forEach((c, i) => {
+      c.hidden = condWasHidden[i];
+    });
+    panels.forEach((p) => {
+      p.style.minHeight = `${tallest}px`;
+    });
+  }
+
+  function showStep(step) {
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.rfiPanel !== String(step);
+    });
+    steps.forEach((item) => {
+      const isCurrent = item.dataset.rfiStep === String(step);
+      item.classList.toggle('rfi__step--current', isCurrent);
+      // aria-current is the non-visual half of what the white rule conveys.
+      if (isCurrent) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    });
+    // The finder's parallax cap depends on where the action buttons sit inside
+    // the hero, and a step change moves them (step 2 stacks more above them)
+    // WITHOUT changing the hero's height — reservePanelHeight() pins that. So a
+    // ResizeObserver cannot see this; it needs telling. See measureFinderRoom().
+    form.dispatchEvent(new CustomEvent('rfi:stepchange', { detail: { step } }));
+  }
+
+  // --- degree -> area -> specialization chain ------------------------------
+  // Each link is disabled until the one before it is answered, so the three
+  // dropdowns can only be worked left to right. Clearing a link back to its
+  // placeholder tears down everything downstream of it — otherwise a stale
+  // specialisation could be submitted for an area that no longer applies.
+  function setDisabled(select, disabled) {
+    if (!select) return;
+    select.disabled = disabled;
+    // Drives the dimming; see `.rfi-field--disabled`.
+    select.closest('[data-rfi-field]')?.classList.toggle('rfi-field--disabled', disabled);
+  }
+
+  function syncChain() {
+    const hasDegree = Boolean(degreeSelect?.value);
+    if (areaSelect) {
+      setDisabled(areaSelect, !hasDegree);
+      if (!hasDegree && areaSelect.value) {
+        areaSelect.value = '';
+        setError(areaSelect, false);
+      }
+    }
+
+    const hasArea = Boolean(areaSelect?.value);
+    if (specSelect) {
+      const options = hasArea ? SPECIALIZATIONS[areaSelect.value] : null;
+      // Rebuild only when the option set actually changes, so simply re-running
+      // this (which happens on every change event) can't wipe a valid choice.
+      if (specSelect.dataset.forArea !== (hasArea ? areaSelect.value : '')) {
+        specSelect.dataset.forArea = hasArea ? areaSelect.value : '';
+        specSelect.innerHTML = '<option value="">Specialization selection</option>';
+        (options || []).forEach((label) => {
+          const option = document.createElement('option');
+          option.value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          option.textContent = label;
+          specSelect.appendChild(option);
+        });
+        setError(specSelect, false);
+      }
+      setDisabled(specSelect, !options?.length);
+    }
+  }
+
+  // One listener for all three: keep the chain in sync, clear the field's error
+  // once it's filled, then re-run the conditionals (specialisation gates the
+  // learning-format question).
+  form.querySelectorAll('.rfi-field__select').forEach((select) => {
+    select.addEventListener('change', () => {
+      syncChain();
+      if (select.value) setError(select, false);
+      syncFollowups();
+    });
+  });
+
+  // Picking an RN answer can open or close the dead end.
+  form.querySelectorAll('input[name="rnLicense"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (disqualifier) disqualifier.hidden = !isDisqualified();
+    });
+  });
+
+  // --- step 2: military benefits follow-up ---------------------------------
+  // Only applies to someone who is military-associated, so it follows the
+  // first question's answer. "No" (the default) keeps it closed.
+  function syncBenefits() {
+    if (!benefitsGroup) return;
+    const show = form.querySelector('input[name="military"]:checked')?.value === 'yes';
+    benefitsGroup.hidden = !show;
+    // Switching back to "No" clears the answer, so a stale "Yes" can't be
+    // submitted for someone who isn't military-associated.
+    if (!show) {
+      form.querySelectorAll('input[name="militaryBenefits"]').forEach((radio) => {
+        radio.checked = false;
+      });
+    }
+  }
+
+  form.querySelectorAll('input[name="military"]').forEach((radio) => {
+    radio.addEventListener('change', syncBenefits);
+  });
+
+  // --- step 2 field states -------------------------------------------------
+  // Validate on blur, not on every keystroke: marking a half-typed email as an
+  // error is noise. Success shows the same way, so a field the user completed
+  // reads as done.
+  form.querySelectorAll('.rfi-field__input').forEach((input) => {
+    input.addEventListener('blur', () => {
+      if (!input.value) {
+        setError(input, false);
+        setSuccess(input, false);
+        return;
+      }
+      const valid = input.checkValidity();
+      setError(input, !valid);
+      setSuccess(input, valid);
+    });
+
+    // Typing clears a standing error as soon as the value becomes valid, so the
+    // red bar doesn't sit there while they fix it.
+    input.addEventListener('input', () => {
+      if (fieldOf(input)?.classList.contains('rfi-field--error') && input.checkValidity()) {
+        setError(input, false);
+        setSuccess(input, true);
+      }
+    });
+  });
+
+  // preventScroll on every step focus: the panels are different heights, so a
+  // default focus() scrolls the page to chase the field and drags the headline
+  // off screen — you'd land on step 2 with the hero's top half gone.
+  next?.addEventListener('click', () => {
+    if (!step1Complete()) {
+      const firstProblem =
+        form.querySelector('.rfi-field--error .rfi-field__control') ||
+        (isDisqualified() ? areaSelect : null) ||
+        form.querySelector('[data-rfi-rn]:not([hidden]) .rfi-radio__input') ||
+        form.querySelector('[data-rfi-formats]:not([hidden]) .rfi-radio__input');
+      firstProblem?.focus({ preventScroll: true });
+      return;
+    }
+    showStep(2);
+    form.querySelector('#rfi-first')?.focus({ preventScroll: true });
+  });
+
+  back?.addEventListener('click', () => {
+    showStep(1);
+    degreeSelect?.focus({ preventScroll: true });
+  });
+
+  // No endpoint to post to in this prototype, so keep the page put and mark up
+  // whatever step 2 is missing using the same states as step 1.
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const step2 = panels.find((panel) => panel.dataset.rfiPanel === '2');
+    if (!step2 || step2.hidden) return;
+    let firstBad = null;
+    step2.querySelectorAll('.rfi-field__input').forEach((input) => {
+      const valid = input.checkValidity();
+      setError(input, !valid);
+      setSuccess(input, valid);
+      if (!valid && !firstBad) firstBad = input;
+    });
+    // "*All fields are required" covers the benefits question too, but only
+    // while it's on screen.
+    if (benefitsGroup && !benefitsGroup.hidden && !form.querySelector('input[name="militaryBenefits"]:checked')) {
+      firstBad = firstBad || benefitsGroup.querySelector('.rfi-radio__input');
+    }
+    firstBad?.focus({ preventScroll: true });
+  });
+
+  syncChain();
+  syncFollowups();
+  syncBenefits();
+  showStep(1);
+  reservePanelHeight();
+  // Re-reserve on resize only — width changes how the copy wraps, so the
+  // tallest state changes too. Deliberately NOT driven off a ResizeObserver:
+  // this function mutates the very heights such an observer would watch.
+  let resizeTimer = null;
+  window.addEventListener(
+    'resize',
+    () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(reservePanelHeight, 150);
+    },
+    { passive: true }
+  );
+}
+
 function initProgramFinder() {
   const section = document.querySelector('.program-finder');
   const chips = document.querySelectorAll('.program-finder__chips .chip');
@@ -526,13 +890,15 @@ function initParallax() {
   update();
 }
 
-// Subtle parallax on the hero's red wall only — the people layer stays put.
+// Subtle parallax on the hero photo. This used to move a separate red-wall
+// layer while a people cutout stayed put; the Figma RFI hero is a single frame,
+// so the whole photo drifts together.
 function initHeroParallax() {
   if (prefersReducedMotion) return;
 
   const hero = document.querySelector('.hero');
-  const red = document.querySelector('.hero__bg-red');
-  if (!hero || !red) return;
+  const photo = document.querySelector('.hero__bg-photo');
+  if (!hero || !photo) return;
 
   let ticking = false;
 
@@ -545,13 +911,19 @@ function initHeroParallax() {
     // wall starts drifting from the very first pixel of scroll — not only after
     // the hero clears the ~128px sticky header, which read as "no parallax".
     const scrolled = window.scrollY || window.pageYOffset || 0;
-    // The wall drifts down as you scroll, lagging the page for depth. Capped at
-    // 70px — comfortably inside the scale(1.5) overshoot so no wall edge is ever
-    // exposed (mobile's 360px hero is the worst case, see .hero__bg-red). Uses
-    // the `translate` property so it composes with (doesn't clobber) the CSS
-    // `transform: scale()` on .hero__bg-red.
-    const shift = Math.min(scrolled * 0.25, 70);
-    red.style.translate = `0 ${shift.toFixed(2)}px`;
+    // The photo drifts down as you scroll, lagging the page for depth. Uses the
+    // `translate` property so it composes with (doesn't clobber) the CSS
+    // `transform: scale()` on .hero__bg-photo.
+    //
+    // The 8px cap is set by the TOP edge. `object-position: ... top` pins the
+    // image's top to the container's, so the only room above it is the scale's
+    // own overshoot — (1.05-1)/2 = 2.38% of the container height, i.e. ~13.5px
+    // on the 568px mobile band, which is the shortest container this runs on and
+    // the one with zero cover slack (its aspect matches the crop exactly). 12px
+    // left barely 2px of margin there; 8px leaves ~6px. Drifting DOWN only ever
+    // increases coverage at the bottom, so that edge is never the constraint.
+    const shift = Math.min(scrolled * 0.08, 8);
+    photo.style.translate = `0 ${shift.toFixed(2)}px`;
   };
 
   const onScroll = () => {
@@ -624,8 +996,16 @@ function initCardScroll() {
 function initContentParallax() {
   if (prefersReducedMotion) return;
 
-  const heroContent = document.querySelector('.hero__content');
+  // The hero copy only floats when the hero is purely decorative. With the RFI
+  // form in the hero it must NOT: the copy would slide up away from a form that
+  // stays put (the form is deliberately excluded — drifting selects and inputs
+  // are miserable to use), leaving a growing gap between a heading and the
+  // fields it introduces.
+  const hasHeroForm = Boolean(document.querySelector('.hero__rfi'));
+  const heroContent = hasHeroForm ? null : document.querySelector('.hero__content');
   const programFinder = document.querySelector('.program-finder');
+  const hero = document.querySelector('.hero');
+  const heroForm = document.querySelector('.hero__rfi');
   if (!heroContent && !programFinder) return;
 
   // Drive both off window.scrollY, NOT off each element's viewport position.
@@ -638,10 +1018,46 @@ function initContentParallax() {
   const HERO_MAX = 260;
   const FINDER_FACTOR = 0.2;
   const FINDER_MAX = 120;
+  const FINDER_GUTTER = 16; // never let the finder come closer than this
+
+  // The finder drifts UP, so it rides over the hero's BOTTOM edge. That edge
+  // used to be empty photo, but it now holds the RFI form's action buttons, and
+  // the full 120px travel covered them at every breakpoint (26px on desktop
+  // step 1, 50px on step 2, 72px on mobile). So the travel is capped at however
+  // much empty space actually sits below the form.
+  //
+  // Measured from `.rfi__actions` — the buttons are the real constraint, and on
+  // mobile the panel's own 48px bottom padding is legitimately coverable space
+  // that measuring the panel's box would have thrown away.
+  //
+  // offsetTop/offsetHeight are LAYOUT values, so they ignore the `translate`
+  // this function is applying — reading them here can't feed back on itself.
+  let finderRoom = FINDER_MAX;
+
+  function measureFinderRoom() {
+    finderRoom = FINDER_MAX;
+    if (!hero || !heroForm) return;
+    const actions = heroForm.querySelector('.rfi__panel:not([hidden]) .rfi__actions');
+    const anchor = actions || heroForm;
+    let bottom = anchor.offsetHeight;
+    for (let node = anchor; node && node !== hero; node = node.offsetParent) {
+      bottom += node.offsetTop;
+    }
+    finderRoom = Math.max(0, Math.min(FINDER_MAX, hero.offsetHeight - bottom - FINDER_GUTTER));
+  }
 
   let ticking = false;
   const update = () => {
     ticking = false;
+    // Measured every frame, on purpose. Trying to cache this and invalidate on
+    // "the events that matter" failed twice: a step change moves the buttons
+    // without resizing anything (ResizeObserver blind), and a conditional
+    // reveal inside a panel whose height is pinned moves them without either a
+    // step change OR a resize. Enumerating the triggers is a losing game, so
+    // the value is simply never cached. The reads are offsetTop/offsetHeight on
+    // three elements and they all happen BEFORE this function's only write, so
+    // there is no read-write thrash inside the frame.
+    measureFinderRoom();
     const y = window.scrollY || document.documentElement.scrollTop || 0;
 
     if (heroContent) {
@@ -656,7 +1072,7 @@ function initContentParallax() {
     }
 
     if (programFinder) {
-      const offset = Math.min(y * FINDER_FACTOR, FINDER_MAX);
+      const offset = Math.min(y * FINDER_FACTOR, finderRoom);
       programFinder.style.translate = `0 ${-offset.toFixed(2)}px`;
     }
   };
@@ -666,6 +1082,23 @@ function initContentParallax() {
     ticking = true;
     requestAnimationFrame(update);
   };
+
+  // update() measures the clearance itself, so these exist only to RE-RUN it
+  // when the layout changes while the page is not scrolling — otherwise a
+  // shrinking clearance would not be applied until the next scroll event, and
+  // the finder would sit over the buttons until then.
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(onScroll);
+    if (hero) observer.observe(hero);
+    if (heroForm) observer.observe(heroForm);
+  }
+  if (heroForm) {
+    heroForm.addEventListener('rfi:stepchange', onScroll);
+    // Every conditional reveal in this form is driven by a select or radio
+    // change, so one delegated listener covers all of them — including the ones
+    // that move the buttons without resizing anything the observer can see.
+    heroForm.addEventListener('change', onScroll);
+  }
 
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onScroll, { passive: true });
@@ -1281,6 +1714,7 @@ function initFooterPartners() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initCarousel();
+  initHeroRfi();
   initProgramFinder();
   initTextReveal();
   initRevealAnimations();
