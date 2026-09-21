@@ -1674,6 +1674,13 @@ button {
   padding: 0 16px;
   border: 1px solid var(--field-outline);
   border-radius: 2px;
+  /* Figma puts a 20% uni-black Fill on the field. It is not decoration: the
+     field is otherwise transparent over the hero photo, and the 12px hint and
+     the 1px border both sat below their contrast minimums against the brighter
+     red. Applied to all fields, selects and text inputs alike, so the row reads
+     as one set. On mobile the RFI panel is already solid uni-black, so this
+     resolves to the same colour there and only the border separates them. */
+  background-color: var(--field-fill);
   transition: border-color var(--duration-fast) ease;
 }
 
@@ -1743,10 +1750,54 @@ button {
 }
 
 /* Room for the caret: Figma's text column stops 39px from the box's right edge
-   (16px padding + 15px icon + 8px gap). Applied to the BOX, not the control, so
-   the hint is bounded too — on a narrow column it would otherwise run under it. */
+   (16px padding + 15px icon + 8px gap). Both the hint and the select carry that
+   39px themselves — on a narrow column the hint would otherwise run under it.
+
+   The select must also be the click target for the WHOLE box, not just its own
+   text line. Laid out as flex rows (hint above value) only 35% of the 48px box
+   opened the dropdown: the top and bottom padding were dead, the left 16px and
+   right 39px were dead at every height, and the hint line hit the <label>, which
+   focuses a select but does not open it — so most of a 355px-wide field did
+   nothing.
+   Fix: one grid cell with the hint and the select STACKED in it. The select
+   stretches to fill the cell and carries the padding itself, so every pixel
+   inside the border belongs to it; the hint is painted on top but set to
+   `pointer-events: none` so clicks fall through. The caret is already
+   pointer-events: none. Paddings reproduce the previous text positions exactly
+   (hint band at +6, value band at +22, 6px below) — 22 + 20 + 6 = 48. */
 .rfi-field__box--select {
-  padding-right: 39px;
+  display: grid;
+  /* minmax(0, 1fr), NOT the implicit `auto` track. An auto track sizes itself
+     from the items' intrinsic contribution, and because both items carry
+     `width: 100%` (a cyclic percentage) it fell back to the select's own
+     content width — a 252px track in a 355px box, leaving the outer 100px
+     dead. The 0 minimum also stops a long option ("Doctor of Nursing
+     Practice") from forcing the track wider than the field. */
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0;
+}
+
+.rfi-field__box--select > .rfi-field__hint,
+.rfi-field__box--select > .rfi-field__select {
+  grid-area: 1 / 1;
+}
+
+/* The paddings are measured from the box's CONTENT edge, which is 1px inside
+   its border — so they are each 1px less than the offsets they reproduce, and
+   they sum to the 46px content height (21 + 20 line + 5), not to 48. Getting
+   that wrong shifts both text bands down a pixel and makes the select overflow
+   the box by 2px. Net result: hint text at +6, value at +22, same as the flex
+   layout this replaced. */
+.rfi-field__box--select > .rfi-field__hint {
+  align-self: start;
+  padding: 5px 39px 0 16px;
+  pointer-events: none;
+}
+
+.rfi-field__box--select > .rfi-field__select {
+  align-self: stretch;
+  height: auto;
+  padding: 21px 39px 5px 16px;
 }
 
 /* Disabled — the gated links in the degree -> area -> specialisation chain.

@@ -109,6 +109,10 @@
   --field-success: #b0e8c1; /* dark; light = #0a822f */
   --field-outline: #adadad; /* dropdown-color-outline-dark */
   --field-label: #adadad; /* color-neutral-subtle-on-surface (dark) */
+  /* uni-black at 20% — the Fill Figma puts on the field itself. It is what
+     makes the 12px hint and the hairline border legible against the brighter
+     parts of the hero photo; see the note on `.rfi-field__box`. */
+  --field-fill: rgba(33, 35, 34, 0.2); /* #212322 @ 20% */
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 0.2s;

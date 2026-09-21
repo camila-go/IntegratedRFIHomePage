@@ -546,7 +546,7 @@ was removed in this form, not in the design).
 
 | State | Dropdown | Input field |
 | --- | --- | --- |
-| inactive | 1px `#adadad`, 2px radius | same |
+| inactive | 1px `#adadad`, 2px radius, `--field-fill` (uni-black 20%) | same |
 | focused | 2px `#0f7bd9` **ring** (outline, not a border swap — nothing reflows) | same |
 | success | — (no such state) | `check` icon `#b0e8c1`, neutral border kept |
 | error | border → `#ffa8a8`, bottom corners squared, message bar below | same |
@@ -596,6 +596,48 @@ before it spreads.
 line-height is tightened to 1.2). Likewise the mockup's "Request program
 information" is 28px against the component's 32px — the hero's 28px is kept,
 since the hero is what's being built.
+
+⚠️ **`--field-fill` (uni-black 20%) is load-bearing, not decoration.** It is the
+Fill Figma puts on the field, and it is what lifts the hairline border and the
+12px hint off the brighter parts of the hero photo. Measured worst-case, before
+→ after adding it:
+
+| | before | after | needs |
+| --- | --- | --- | --- |
+| border, degree / area | 2.50 / 2.55 | **3.22 / 3.30** | 3 ✅ |
+| border, specialisation | 2.01 | 2.66 | 3 ❌ |
+| hint 12px `#adadad` | 2.80 | 3.57 | 4.5 ❌ |
+| value band (white) | 5.65 | 7.30 | 4.5 ✅ |
+| focus ring `#0f7bd9` | 1.04–1.32 | 1.38–1.71 | 3 ❌ |
+
+So it fixes two of the three borders and helps everything, but **does not close
+the accessibility gaps on its own**. The specialisation field sits over her
+bright sweater and still falls short; the hint needs a lighter colour than
+`#adadad`, not a darker backdrop; and the focus ring barely moves because blue
+on red is near-isoluminant — darkening the backdrop lowers both sides together.
+Don't treat this fill as having resolved those.
+
+⚠️ **The whole dropdown box must be the click target — check it if you touch
+the layout.** `.rfi-field__box--select` is a single-cell **grid** with the hint
+and the select stacked in it (`grid-area: 1 / 1`), the select stretched to fill
+the cell and carrying the padding itself, and the hint set to
+`pointer-events: none` so clicks fall through to it. Laid out the obvious way —
+flex rows, hint above value — only **35%** of a 355×48 field opened the
+dropdown: the top and bottom padding were dead, the left 16px and right 39px
+were dead at every height, and the hint line hit the `<label>`, which focuses a
+select but does *not* open it. It is **97%** now, the remainder being the 1px
+border ring itself.
+
+Two traps in that rule:
+- The track must be `minmax(0, 1fr)`, not the implicit `auto`. An auto track
+  sizes from the items' intrinsic contribution and, because both carry
+  `width: 100%` (a cyclic percentage), it collapsed to the select's own content
+  width — a 252px track in a 355px box, leaving 100px dead at the edges. The `0`
+  minimum also stops a long option ("Doctor of Nursing Practice") widening it.
+- The paddings are measured from the box's **content** edge, 1px inside the
+  border, so they are each 1px less than the offsets they reproduce and sum to
+  the 46px content height (21 + 20 + 5), not 48. Getting that wrong shifts both
+  text bands down a pixel and makes the select overflow the box by 2px.
 
 ⚠️ **The selected radio dot is WHITE here, not the component's uni-red.**
 `.rfi-radio__mark` is transparent, so the dot sits straight on the hero photo —
