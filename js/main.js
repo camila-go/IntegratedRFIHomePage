@@ -480,7 +480,7 @@ function initHeroRfi() {
   // error is noise. Success shows the same way, so a field the user completed
   // reads as done.
   form.querySelectorAll('.rfi-field__input').forEach((input) => {
-    input.addEventListener('blur', () => {
+    const evaluate = () => {
       if (!input.value) {
         setError(input, false);
         setSuccess(input, false);
@@ -489,7 +489,15 @@ function initHeroRfi() {
       const valid = input.checkValidity();
       setError(input, !valid);
       setSuccess(input, valid);
-    });
+    };
+
+    input.addEventListener('blur', evaluate);
+    // Autofill never fires `blur` — the browser fills the field without it ever
+    // being focused — so a blur-only check left autofilled fields with no state
+    // at all, no success tick on a valid value and no error on a bad one, until
+    // the user happened to click into and out of them. Chrome/Safari do fire
+    // `change` when they autofill, so this covers it.
+    input.addEventListener('change', evaluate);
 
     // Typing clears a standing error as soon as the value becomes valid, so the
     // red bar doesn't sit there while they fix it.

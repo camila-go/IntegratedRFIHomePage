@@ -551,6 +551,32 @@ was removed in this form, not in the design).
 | success | — (no such state) | `check` icon `#b0e8c1`, neutral border kept |
 | error | border → `#ffa8a8`, bottom corners squared, message bar below | same |
 | disabled | content (hint + value + caret) at 0.55, **border kept** | — (inputs are never gated) |
+| autofilled | — (not an autofill target) | UA background clipped away, value forced back to white |
+
+⚠️ **Autofill needs handling in both CSS and JS, and neither is obvious.**
+
+*Visually:* Chrome and Safari paint an autofilled field with a pale UA
+background and near-black text using a rule authors cannot override —
+`background-color` and `color` are both ignored. On the red hero that turned the
+name fields into pale blue boxes. The usual workaround, a 1000px opaque inset
+`box-shadow`, is **wrong here**: these fields are deliberately transparent so the
+photo shows through, and an opaque shadow paints a solid block over it. Instead
+`-webkit-background-clip: text` clips the UA background to the glyphs — where
+`-webkit-text-fill-color: white` then covers it — so the field stays
+transparent. The `:autofill` and `:-webkit-autofill` rules are kept **separate**
+because a browser that doesn't recognise one selector discards the entire rule
+it appears in.
+
+*Behaviourally:* **autofill never fires `blur`** — the browser fills the field
+without it ever being focused — so the blur-only validation left autofilled
+fields with no state at all: no tick on a valid value, no error on a bad one,
+until the user happened to click in and out. `initHeroRfi()` listens for
+`change` as well, which is what Chrome/Safari do fire on autofill.
+
+Only the text inputs are covered. The three selects have no `autocomplete`
+attribute and aren't plausible autofill targets; the rule is deliberately not
+extended to them, because `-webkit-text-fill-color` on a `<select>` can leak
+into its `option` list in some engines and those are styled dark-on-white.
 
 Figma has **no disabled variant** for either component, so `.rfi-field--disabled`
 follows what already shipped for the specialisation dropdown: dim the content and
@@ -570,6 +596,15 @@ before it spreads.
 line-height is tightened to 1.2). Likewise the mockup's "Request program
 information" is 28px against the component's 32px — the hero's 28px is kept,
 since the hero is what's being built.
+
+⚠️ **The selected radio dot is WHITE here, not the component's uni-red.**
+`.rfi-radio__mark` is transparent, so the dot sits straight on the hero photo —
+and the dot is the only thing that distinguishes selected from unselected. Red
+on red measured **1.42:1** behind the RN answer and **2.55:1** behind the
+learning-format row, against the 3:1 that a graphical state indicator needs
+(1.4.11); it read as barely filled. White measures **9.09:1** and **16.33:1**
+and matches the ring around it. Don't "correct" it back to red without also
+giving the mark an opaque fill.
 
 ⚠️ **The Font Awesome kit script replaces every `<i>` with an `<svg>`.** It
 carries custom classes across but obviously not the tag, so icon rules must key
