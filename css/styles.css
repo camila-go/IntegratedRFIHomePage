@@ -1780,6 +1780,37 @@ button {
   opacity: 1;
 }
 
+/* AUTOFILL. Chrome/Safari paint an autofilled field with a pale UA background
+   and near-black text, and they do it with a rule authors cannot beat —
+   `background-color` is ignored. That turned these fields into pale blue boxes
+   on the red hero.
+   The usual workaround (a 1000px opaque inset box-shadow) is no good here: the
+   field is deliberately TRANSPARENT so the photo shows through, and an opaque
+   shadow would paint a solid block over it. Clipping the UA background to the
+   glyphs instead makes it invisible while leaving the field transparent, and
+   -webkit-text-fill-color puts the value back to white — `color` alone is also
+   ignored while autofilled.
+   `:autofill` is the standard selector, `:-webkit-autofill` the legacy one;
+   both are listed because neither covers every engine on its own. They are in
+   separate rules on purpose — a browser that doesn't know one selector throws
+   away the whole rule it appears in. */
+.rfi-field__input:-webkit-autofill,
+.rfi-field__input:-webkit-autofill:hover,
+.rfi-field__input:-webkit-autofill:focus,
+.rfi-field__input:-webkit-autofill:active {
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--color-white);
+  caret-color: var(--color-white);
+}
+
+.rfi-field__input:autofill {
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: var(--color-white);
+  caret-color: var(--color-white);
+}
+
 /* SUCCESS — a check inside the box's right edge. Figma keeps the neutral
    border on success and lets the icon carry the state, so there is no border
    override here. */
@@ -1959,12 +1990,16 @@ button {
   background: transparent;
 }
 
+/* White, not the uni-red the Figma component uses. The mark is transparent, so
+   the dot sits directly on the hero photo — a red dot on red read as barely
+   filled, and the dot IS the only thing distinguishing selected from unselected
+   (1.4.11). White matches the ring around it and reads at a glance. */
 .rfi-radio__input:checked + .rfi-radio__mark::after {
   content: '';
   position: absolute;
   inset: 4px;
   border-radius: 50%;
-  background: var(--color-uni-red);
+  background: var(--color-white);
 }
 
 .rfi-radio__input:focus-visible + .rfi-radio__mark {
