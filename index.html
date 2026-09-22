@@ -60,14 +60,14 @@
       rel="preload"
       as="image"
       href="/assets/hero-rfi-desktop.webp"
-      media="(min-width: 769px)"
+      media="(min-width: 1024px)"
       fetchpriority="high"
     />
     <link
       rel="preload"
       as="image"
       href="/assets/hero-rfi-mobile.webp"
-      media="(max-width: 768px)"
+      media="(max-width: 1023px)"
       fetchpriority="high"
     />
     <script src="https://kit.fontawesome.com/f1bee60eab.js" crossorigin="anonymous"></script>
@@ -405,7 +405,11 @@
       <section class="hero" aria-labelledby="hero-heading">
         <div class="hero__background" aria-hidden="true">
           <picture>
-            <source media="(max-width: 768px)" srcset="/assets/hero-rfi-mobile.webp" />
+            <!-- The portrait crop covers mobile AND tablet: from 768 to 1023 the
+                 hero is two columns and the photo only gets the left half, which
+                 is a portrait box the landscape crop cannot fill without losing
+                 her face. Lines up with the tablet hero block's 768-1023. -->
+            <source media="(max-width: 1023px)" srcset="/assets/hero-rfi-mobile.webp" />
             <img
               src="/assets/hero-rfi-desktop.webp"
               alt=""
@@ -434,9 +438,16 @@
           <form class="hero__rfi rfi" id="rfi-form" novalidate>
             <div class="rfi__head">
               <h2 class="rfi__title">Request program information</h2>
+              <!-- Navigable, not just a progress read-out: each label is a real
+                   button. Going back to step 1 is always allowed; jumping to
+                   step 2 runs the same gate as "Learn program details". -->
               <ol class="rfi__stepper">
-                <li class="rfi__step rfi__step--current" data-rfi-step="1">STEP 1</li>
-                <li class="rfi__step" data-rfi-step="2">STEP 2</li>
+                <li class="rfi__step rfi__step--current" data-rfi-step="1" aria-current="step">
+                  <button type="button" class="rfi__step-btn" data-rfi-goto="1">STEP 1</button>
+                </li>
+                <li class="rfi__step" data-rfi-step="2">
+                  <button type="button" class="rfi__step-btn" data-rfi-goto="2">STEP 2</button>
+                </li>
               </ol>
             </div>
 
@@ -444,6 +455,19 @@
               <div class="rfi__prompt">
                 <h3 class="rfi__prompt-title">What are you interested in?</h3>
                 <p class="rfi__required">*All fields are required</p>
+                <!-- The area and specialization selects are `disabled` until the
+                     one before them is answered, which takes them out of the tab
+                     order entirely — so without this, step 1 is announced as a
+                     one-field form and the progressive reveal is invisible
+                     non-visually. Sighted users get the same information from
+                     the dimmed fields (WCAG 3.3.2). Lives in the panel's flow
+                     rather than on the selects themselves, because a `disabled`
+                     control's `aria-describedby` is never read out. -->
+                <p class="visually-hidden">
+                  Three questions, answered in order: area of study becomes
+                  available once you choose a degree, and program or
+                  specialization once you choose an area of study.
+                </p>
               </div>
 
               <div class="rfi__fields rfi__fields--3">
@@ -454,16 +478,14 @@
                 <div class="rfi-field" data-rfi-field>
                   <div class="rfi-field__shell">
                     <div class="rfi-field__box rfi-field__box--select">
-                      <label class="rfi-field__hint" for="rfi-degree">
-                        Select your degree of interest here
-                      </label>
+                      <label class="rfi-field__hint" for="rfi-degree">Degree</label>
                       <select
                         id="rfi-degree"
                         class="rfi-field__control rfi-field__select"
                         aria-describedby="rfi-degree-error"
                         required
                       >
-                        <option value="">Degree selection</option>
+                        <option value="">Degree</option>
                         <option value="bachelors">Bachelor&apos;s</option>
                         <option value="masters">Master&apos;s</option>
                         <option value="doctoral">Doctoral</option>
@@ -473,7 +495,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-degree-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Select a degree to continue</span>
+                      <span>Please select your degree</span>
                     </p>
                   </div>
                 </div>
@@ -481,9 +503,7 @@
                 <div class="rfi-field" data-rfi-field>
                   <div class="rfi-field__shell">
                     <div class="rfi-field__box rfi-field__box--select">
-                      <label class="rfi-field__hint" for="rfi-area">
-                        Select your area of study here
-                      </label>
+                      <label class="rfi-field__hint" for="rfi-area">Area of study</label>
                       <select
                         id="rfi-area"
                         class="rfi-field__control rfi-field__select"
@@ -491,7 +511,7 @@
                         required
                         disabled
                       >
-                        <option value="">AOS selection</option>
+                        <option value="">Area of study</option>
                         <option value="business">Business</option>
                         <option value="counseling">Counseling</option>
                         <option value="education">Education</option>
@@ -504,7 +524,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-area-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Select an area of study to continue</span>
+                      <span>Please select your area of study</span>
                     </p>
                   </div>
                 </div>
@@ -513,7 +533,7 @@
                   <div class="rfi-field__shell">
                     <div class="rfi-field__box rfi-field__box--select">
                       <label class="rfi-field__hint" for="rfi-specialization">
-                        Select your specialization here
+                        Program/specialization
                       </label>
                       <!-- Options are filled from SPECIALIZATIONS once an area is
                            picked — same source the program finder below uses. -->
@@ -524,13 +544,13 @@
                         required
                         disabled
                       >
-                        <option value="">Specialization selection</option>
+                        <option value="">Program/Specialization</option>
                       </select>
                       <i class="rfi-field__caret fa-sharp fa-solid fa-chevron-down" aria-hidden="true"></i>
                     </div>
                     <p class="rfi-field__error" id="rfi-specialization-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Select a specialization to continue</span>
+                      <span>Please enter your specialization</span>
                     </p>
                   </div>
                 </div>
@@ -567,12 +587,12 @@
                     <label class="rfi-radio">
                       <input type="radio" name="format" value="guidedpath" class="rfi-radio__input" />
                       <span class="rfi-radio__mark" aria-hidden="true"></span>
-                      <span class="rfi-radio__label">GuidedPath:<br />Follow our schedule</span>
+                      <span class="rfi-radio__label">GuidedPath: Follow our schedule</span>
                     </label>
                     <label class="rfi-radio">
                       <input type="radio" name="format" value="flexpath" class="rfi-radio__input" />
                       <span class="rfi-radio__mark" aria-hidden="true"></span>
-                      <span class="rfi-radio__label">FlexPath:<br />Set your own pace</span>
+                      <span class="rfi-radio__label">FlexPath: Set your own pace</span>
                     </label>
                     <label class="rfi-radio">
                       <input type="radio" name="format" value="both" class="rfi-radio__input" />
@@ -591,7 +611,7 @@
               </p>
 
               <div class="rfi__actions">
-                <button type="button" class="btn btn--primary btn--md" data-rfi-next>
+                <button type="button" class="btn btn--primary btn--lg" data-rfi-next>
                   Learn program details
                 </button>
               </div>
@@ -625,7 +645,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-first-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Enter your first name</span>
+                      <span>First name is required</span>
                     </p>
                   </div>
                 </div>
@@ -648,7 +668,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-last-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Enter your last name</span>
+                      <span>Last name is required</span>
                     </p>
                   </div>
                 </div>
@@ -671,7 +691,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-email-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Enter a valid email address</span>
+                      <span>Email is required</span>
                     </p>
                   </div>
                 </div>
@@ -694,7 +714,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-phone-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Enter a 10-digit phone number</span>
+                      <span>Phone is required</span>
                     </p>
                   </div>
                 </div>
@@ -719,7 +739,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-zip-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Enter a 5-digit ZIP code</span>
+                      <span>Zip code required</span>
                     </p>
                   </div>
                 </div>
@@ -788,10 +808,10 @@
               </p>
 
               <div class="rfi__actions">
-                <button type="button" class="btn btn--outline btn--md rfi__back" data-rfi-back>
+                <button type="button" class="btn btn--outline btn--lg rfi__back" data-rfi-back>
                   Back
                 </button>
-                <button type="submit" class="btn btn--primary btn--md">
+                <button type="submit" class="btn btn--primary btn--lg">
                   I accept, get program details
                 </button>
               </div>

@@ -1425,7 +1425,7 @@ button {
   /* Mobile: the photo occupies the top 568px of a 952px hero and the form panel
      sits below it in flow, its own solid fill covering the rest. So NO
      `overflow: hidden` and no fold-reserve maths — the hero is as tall as its
-     content. The desktop breakpoint re-adds both. */
+     content. The tablet and desktop blocks re-add both. */
   padding-top: 240px; /* 192px hero pad + 48px text pad */
 }
 
@@ -1491,15 +1491,30 @@ button {
   }
 }
 
+/* --- The scrim over the photo --------------------------------------------
+   **20% black behind the copy, ramping to 0 across the subject's face** (Figma:
+   a Linear fill at 20% layer opacity over the image, black 100% → black 0%).
+   ⚠️ Its DIRECTION changes per composition, because "behind the copy" and "on
+   her face" are in different places at each one:
+     ≤767     vertical — the copy is at the FOOT of the photo band, her face at
+              its top. Band-relative is fine here: the band is a fixed 568px.
+     768–1023 vertical too, with its own stops — the photo is full-bleed and
+              mirrored there, so her face sits higher in the frame.
+     ≥1024    horizontal — the copy is on the left and she is on the right, so
+              the ramp runs across the frame and hits 0 at her face.
+   ⚠️ This replaced a radial black at 0.7 centred bottom (the earlier Figma
+   spec). It is far lighter; that is intentional and it still clears contrast —
+   white on the wall red measures ~8:1 before any scrim at all. */
 .hero__gradient {
   position: absolute;
   inset: 0;
-  /* Figma puts a radial black at 0.7 behind the copy, bottom-centred. */
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 97%,
-    rgba(0, 0, 0, 0.7) 0%,
-    rgba(0, 0, 0, 0) 70%
-  );
+  /* 0 by the end of her skin, full 20% before the copy starts. Measured: on the
+     568px band the crop renders at 0.525×, so the skin scan's last row (source
+     420) lands at 206px — 36% — and the copy starts at 240px (42%), since
+     `.hero`'s 240px top padding pins it. So 37% clears her and 42% is full
+     exactly where the text begins. Both ends are fixed here, which is why this
+     one can hit both marks cleanly. */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 37%, rgba(0, 0, 0, 0.2) 42%);
 }
 
 .hero__inner {
@@ -1537,6 +1552,7 @@ button {
 
 /* --- Integrated RFI form -------------------------------------------------
    Mobile: a solid uni-black panel stacked under the photo (Figma 9770:20400).
+   Tablet: the same solid panel, as the hero's right-hand column.
    Desktop: transparent, laid over the photo (Figma 9770:20293). */
 .hero__rfi {
   display: flex;
@@ -1544,6 +1560,12 @@ button {
   gap: 24px;
   padding: 24px 15px 48px;
   background: var(--color-uni-black);
+  /* Softens the panel's corners wherever it HAS a fill — the floating tablet
+     panel is the one that shows it properly. On mobile the panel is full-bleed,
+     so its top corners reveal the photo band behind it and its bottom corners
+     the page's own dark; both read fine. Inert at 1024+, where the form is
+     transparent over the photo. */
+  border-radius: 8px;
 }
 
 .rfi__head {
@@ -1577,19 +1599,49 @@ button {
 .rfi__step {
   flex: 1 0 0;
   padding-bottom: 16px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  /* The rule under each half is the progress indicator: the current step's is
+     solid white and a px thicker, the other is a dimmer hairline. */
+  border-bottom: 2px solid rgba(255, 255, 255, 0.4);
   color: var(--color-white);
   font-family: var(--font-body);
   font-size: var(--text-body);
   font-weight: 400;
   line-height: 1.5;
   text-align: center;
-  transition: border-color var(--duration-fast) ease, font-weight var(--duration-fast) ease;
+  transition: border-color var(--duration-fast) ease, border-width var(--duration-fast) ease;
 }
 
 .rfi__step--current {
+  border-bottom-width: 3px;
   border-bottom-color: var(--color-white);
   font-weight: 700;
+}
+
+/* The label itself is the control. It is a real <button> so it is reachable by
+   keyboard and announced as clickable; the <li> keeps the rule and the
+   aria-current. Stretched to the full half so the whole tab is the hit area
+   (44px tall, which clears the AAA target size too). */
+.rfi__step-btn {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.rfi__step-btn:hover {
+  text-decoration: underline;
+}
+
+.rfi__step-btn:focus-visible {
+  outline: var(--nav-focus-ring);
+  outline-offset: var(--nav-focus-offset);
 }
 
 .rfi__panel {
@@ -1670,28 +1722,39 @@ button {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  height: 48px;
+  /* `min-height`, NOT `height` (1.4.4 Resize text). At a fixed 48px the box
+     could not grow with its own text: under text-only zoom the stacked hint +
+     value in the three dropdowns measured ~100px against 46px of content box
+     and overflowed it. Renders identically at 100% — the content is 44px, so the
+     min-height is what sets the 48. */
+  min-height: 48px;
   padding: 0 16px;
   border: 1px solid var(--field-outline);
   border-radius: 2px;
-  /* Figma puts a 20% uni-black Fill on the field. It is not decoration: the
-     field is otherwise transparent over the hero photo, and the 12px hint and
-     the 1px border both sat below their contrast minimums against the brighter
-     red. Applied to all fields, selects and text inputs alike, so the row reads
-     as one set. On mobile the RFI panel is already solid uni-black, so this
-     resolves to the same colour there and only the border separates them. */
+  /* Filled WHITE. The field is a light surface sitting on the dark photo, which
+     is why every field token resolves to its light-theme value (see
+     tokens.css) — dark text, grey hint, red caret, light-pink error bar. It
+     also removes the contrast problem the transparent treatment had, where the
+     hint and the hairline border were measured against whatever the photo
+     happened to be doing underneath. */
   background-color: var(--field-fill);
   transition: border-color var(--duration-fast) ease;
 }
 
+/* NOT white — that was right on a transparent field over the photo and is
+   invisible on a white fill. */
 .rfi-field__box:hover {
-  border-color: var(--color-white);
+  border-color: var(--field-text);
 }
 
-/* FOCUSED. Figma draws a 2px #0f7bd9 ring around the box (not a border swap),
-   so the box keeps its own outline underneath and nothing reflows. It sits on
-   the box rather than the control because the control has no border of its
-   own — a ring there reads as a double edge. */
+/* FOCUSED. A 2px ring around the box (not a border swap), so the box keeps its
+   own outline underneath and nothing reflows. It sits on the box rather than the
+   control because the control has no border of its own — a ring there reads as a
+   double edge.
+   The colour is GREY, see `--field-focus-ring`: the DS component specifies
+   #0f7bd9, which is right on a light page but measured 1.0–1.7:1 while these
+   fields were transparent over the red photo, and the design shows a neutral
+   ring on the white fill. Radios keep the shared white `--nav-focus-ring`. */
 .rfi-field__box:focus-within {
   outline: 2px solid var(--field-focus-ring);
   outline-offset: 1px;
@@ -1714,10 +1777,12 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-white);
+  color: var(--field-text);
   font-family: var(--font-body);
   font-size: var(--text-body);
-  font-weight: 400;
+  /* Bold: the value is the field's headline on a white fill, and the 12px grey
+     hint above it carries the labelling. */
+  font-weight: 700;
   line-height: 1.25;
   appearance: none;
 }
@@ -1744,8 +1809,8 @@ button {
   top: 50%;
   right: 16px;
   translate: 0 -50%;
-  font-size: 12px;
-  color: var(--color-white);
+  font-size: 14px;
+  color: var(--field-caret);
   pointer-events: none; /* clicks belong to the select underneath */
 }
 
@@ -1794,10 +1859,16 @@ button {
   pointer-events: none;
 }
 
+/* ⚠️ The top padding is in **em**, not px, and that is what makes the stack
+   survive text zoom. The two bands are grid-stacked in one cell, so the value's
+   top padding is the only thing holding it clear of the hint above it. In px it
+   stayed 21 while the hint's line grew, and at 2× text the hint (39px tall)
+   overlapped the value. 1.3125em of the select's own 16px is the same 21px at
+   100% and scales with it. */
 .rfi-field__box--select > .rfi-field__select {
   align-self: stretch;
   height: auto;
-  padding: 21px 39px 5px 16px;
+  padding: 1.3125em 39px 5px 16px;
 }
 
 /* Disabled — the gated links in the degree -> area -> specialisation chain.
@@ -1805,10 +1876,11 @@ button {
    shipped for specialisation: dim the CONTENT, leave the border at full
    strength so the field still reads as a field. The class is set by
    initHeroRfi()'s syncChain() alongside the `disabled` attribute. */
-.rfi-field--disabled .rfi-field__hint,
-.rfi-field--disabled .rfi-field__select,
-.rfi-field--disabled .rfi-field__caret {
-  opacity: 0.55;
+/* The whole box fades, not just the text inside it: a gated field reads as a
+   translucent panel with the photo showing through, which is what makes it
+   obviously not-yet-available next to the solid white of an active one. */
+.rfi-field--disabled .rfi-field__box {
+  opacity: 0.5;
 }
 
 .rfi-field__select:disabled {
@@ -1826,8 +1898,11 @@ button {
   background: var(--color-white);
 }
 
+/* Regular weight, unlike a filled value — a placeholder that looked identical
+   to real input read as already answered. */
 .rfi-field__input::placeholder {
-  color: var(--color-white);
+  color: var(--field-text);
+  font-weight: 400;
   opacity: 1;
 }
 
@@ -1838,9 +1913,13 @@ button {
    The usual workaround (a 1000px opaque inset box-shadow) is no good here: the
    field is deliberately TRANSPARENT so the photo shows through, and an opaque
    shadow would paint a solid block over it. Clipping the UA background to the
-   glyphs instead makes it invisible while leaving the field transparent, and
-   -webkit-text-fill-color puts the value back to white — `color` alone is also
-   ignored while autofilled.
+   glyphs instead makes it invisible, and -webkit-text-fill-color puts the value
+   back to the field's own text colour — `color` alone is also ignored while
+   autofilled.
+   ⚠️ That colour must track `--field-text`, not be hard-coded. It was
+   `--color-white` while the field was transparent over the photo; once the
+   field was filled white that would have painted autofilled values white on
+   white.
    `:autofill` is the standard selector, `:-webkit-autofill` the legacy one;
    both are listed because neither covers every engine on its own. They are in
    separate rules on purpose — a browser that doesn't know one selector throws
@@ -1851,15 +1930,15 @@ button {
 .rfi-field__input:-webkit-autofill:active {
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: var(--color-white);
-  caret-color: var(--color-white);
+  -webkit-text-fill-color: var(--field-text);
+  caret-color: var(--field-text);
 }
 
 .rfi-field__input:autofill {
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: var(--color-white);
-  caret-color: var(--color-white);
+  -webkit-text-fill-color: var(--field-text);
+  caret-color: var(--field-text);
 }
 
 /* SUCCESS — a check inside the box's right edge. Figma keeps the neutral
@@ -1893,19 +1972,23 @@ button {
    to #ff3b3b, and its message text to #ffa8a8 rather than white. The two
    components disagree in Figma; this picks one so dropdowns and inputs match
    each other in the same form. Worth a design decision before it spreads. */
+/* The bottom border STAYS. It is the line that separates the field from its
+   message — without it the white box bleeds straight into the pink bar and they
+   read as one shape. (The original dark Figma variant did drop it, to make the
+   two a single continuous object; the white-filled design keeps them distinct.)
+   The message bar below has `border-top: 0` so this is the only line between
+   them, not a doubled 2px one. */
 .rfi-field--error .rfi-field__box {
   border-color: var(--field-error-line);
-  border-bottom-color: transparent;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
 
 /* Not redundant with the rule above — it has to out-specify
    `.rfi-field__box:hover`, or hovering an errored field would repaint the
-   border white and drop the only sign of which field is wrong. */
+   border and drop the only sign of which field is wrong. */
 .rfi-field--error .rfi-field__box:hover {
   border-color: var(--field-error-line);
-  border-bottom-color: transparent;
 }
 
 .rfi-field__error {
@@ -1913,7 +1996,9 @@ button {
   align-items: center;
   gap: 4px;
   margin: 0;
-  padding: 1px 12px 2px;
+  /* 8px sides, not 12: the message has to fit on ONE line inside a field that is
+     only ~200px wide in the five-across step-2 row. See the note below. */
+  padding: 4px 8px 5px;
   border: 1px solid var(--field-error-line);
   border-top: 0;
   border-bottom-left-radius: 2px;
@@ -1921,8 +2006,14 @@ button {
   background: var(--field-error-surface);
   color: var(--field-error-text);
   font-family: var(--font-body);
-  font-size: 0.5rem; /* 8px — Figma's error message size */
-  font-weight: 400;
+  /* 12px bold, not the component's 8px regular. 8px was what the dark Figma
+     variant specified and it was effectively unreadable — the only finding in
+     the accessibility pass that passed contrast yet still failed in practice.
+     12px rather than 13 so the longest message ("Please enter your first name")
+     stays on one line in the five-across step-2 row at 1440, with ~13px of slack
+     left for a font fallback; at 13px it overflowed by 17px and wrapped. */
+  font-size: var(--field-error-size);
+  font-weight: 700;
   line-height: 1.5;
 }
 
@@ -1937,7 +2028,7 @@ button {
    reason `.rfi-field__check` is a class rather than an element selector. */
 .rfi-field__error-icon {
   flex-shrink: 0;
-  font-size: 8px;
+  font-size: 11px;
   color: var(--field-error-line);
 }
 
@@ -1988,6 +2079,9 @@ button {
 /* The three format options stack on mobile — two of the three labels are two
    lines ("GuidedPath: / Follow our schedule"), so in a row at 345px they'd be
    ~100px each and break mid-word. They become equal-width columns at 769px+. */
+/* Content-width options, not equal thirds. As Fill columns each one was ~215px
+   of mostly empty space and the labels wrapped; at their own width the three sit
+   in one tidy row. Still a column on mobile. */
 .rfi__radios--formats {
   flex-direction: column;
   gap: 16px;
@@ -2031,26 +2125,37 @@ button {
   margin: 0;
 }
 
+/* White-filled, like the fields: a 2px grey ring unselected, a red ring with a
+   red centre when selected.
+   ⚠️ The dot used to be WHITE on a transparent mark, which was right while the
+   radios sat straight on the red photo — red on red measured 1.4:1 there. Now
+   the mark is filled white, so red is both what the design shows and the higher
+   contrast choice (6.4:1 on white). Don't re-apply the old white-dot rule. */
 .rfi-radio__mark {
   position: relative;
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  border: 1px solid var(--color-white);
+  border: 2px solid var(--field-label);
   border-radius: 50%;
-  background: transparent;
+  background: var(--color-white);
+  transition: border-color var(--duration-fast) ease;
 }
 
 /* White, not the uni-red the Figma component uses. The mark is transparent, so
    the dot sits directly on the hero photo — a red dot on red read as barely
    filled, and the dot IS the only thing distinguishing selected from unselected
    (1.4.11). White matches the ring around it and reads at a glance. */
+.rfi-radio__input:checked + .rfi-radio__mark {
+  border-color: var(--color-uni-red);
+}
+
 .rfi-radio__input:checked + .rfi-radio__mark::after {
   content: '';
   position: absolute;
-  inset: 4px;
+  inset: 3px;
   border-radius: 50%;
-  background: var(--color-white);
+  background: var(--color-uni-red);
 }
 
 .rfi-radio__input:focus-visible + .rfi-radio__mark {
@@ -2085,19 +2190,54 @@ button {
 
 .rfi__back {
   order: 1; /* "Back" sits under the submit on mobile, beside it on desktop */
-  /* `.btn--md`'s 12px padding + a 24px line + `.btn--outline`'s 2px ring comes
-     to 52px, so this one button would stand 4px taller than the red pill it
-     sits next to. Figma has them both at 48. */
-  padding-block: 10px;
+  /* `.btn--lg`'s 16px padding + a 30px line + `.btn--outline`'s 2px ring comes
+     to 64px, so this one button would stand 4px taller than the red pill it
+     sits next to. 14px brings it back to the same 60px. */
+  padding-block: 14px;
 }
 
+/* --- The form's own buttons ----------------------------------------------
+   The red CTAs ("Learn program details", "I accept, get program details") are
+   marked up `btn btn--primary btn--lg` — the SAME recipe as the stats section's
+   "See all Capella programs", minus its arrow SVG. So they take the page's pill
+   radius, 60px height and 20px label, and deliberately its whole state set:
+   hover/focus invert to a white fill with red text, active goes boulder-50, and
+   focus-visible adds the white ring. There is no `.hero__rfi .btn` override any
+   more — that is the point.
+   ⚠️ This reverses an earlier pass that made them square with a shadow-only
+   hover and colours locked in every state. If that treatment comes back, scope
+   it here again rather than editing `.btn--primary`, which four other buttons
+   on the page share.
+   ⚠️ The labels fit on one line at every width: the longest is 278px at 20px
+   bold, plus 56px of padding = 334px, against 352px of panel at 768 and 345px
+   at 375.
+   **Back** is `btn btn--outline btn--lg rfi__back` — the same recipe as the
+   accreditation section's "See all accreditations", so it too is unoverridden:
+   transparent with a 2px white ring and white text, inverting to a white fill
+   with dark text on hover/focus, `--color-boulder-50` on press, white ring on
+   focus-visible. It is `--lg` rather than the reference's `--md` only so it
+   stands the same height as the red pill beside it.
+   ⚠️ An earlier pass locked Back to a solid white fill with red text in every
+   state. Removing that is what lets `.btn--outline`'s own states through; if the
+   solid look is wanted back, re-add the lock under `.hero__rfi` and restore the
+   `:focus-visible` ring with it, since a locked fill hides the inversion that
+   would otherwise signal focus. */
+
 /* --- Hero, desktop (Figma 9770:20288 / 9770:24417) -----------------------
-   769px so it lines up exactly with the <picture> mobile source's
-   `(max-width: 768px)`. Everything now sits OVER a full-height photo, so the
-   form loses its panel fill and the whole block left-aligns in the same
-   1440/page-gutter measure `.page-container` gives the rest of the page —
-   which is what puts it at Figma's x=240 on a 1920 frame. */
-@media (min-width: 769px) {
+   1024px, NOT 769. There are three hero compositions, not two:
+     ≤767     stacked — photo band on top, dark form panel below it
+     768–1023 two columns — photo left, dark form panel right (see below)
+     ≥1024    this one — everything over a full-bleed photo
+   The tablet layout is much closer to mobile's (full-width blocks inside a
+   narrow panel, stacked questions, full-width buttons) than to this one, so it
+   inherits the mobile rules and overrides the few things that differ, rather
+   than undoing this whole block. Moving the boundary down to 769 would hand the
+   tablet band a 13-rule unwind.
+   Here everything sits OVER a full-height photo, so the form loses its panel
+   fill and the whole block left-aligns in the same 1440/page-gutter measure
+   `.page-container` gives the rest of the page — which is what puts it at
+   Figma's x=240 on a 1920 frame. */
+@media (min-width: 1024px) {
   .hero {
     display: flex;
     align-items: center;
@@ -2108,11 +2248,82 @@ button {
     min-height: min(var(--hero-height), calc(100svh - var(--hero-fold-reserve)));
     padding: 64px 0;
     overflow: hidden;
+    /* --- How wide the copy gets, and how big the headline is ---------------
+       Two linked values. The headline is ONE LINE at all desktop widths, and
+       the whole string is **8.276x the font size** wide (measured, tracking
+       included: 595.9px at 72px), so the cap has to be at least that.
+
+       `--hero-title-size` ramps **42px at 1024 -> 72px at 1440**, then holds at
+       72. Both ends are by request; the ramp between them is linear so the line
+       grows with the room it has.
+
+       `--hero-copy-max` is the width the headline and subtitle share. It started
+       as pure geometry — where `cover` puts her, less the gutter, less a
+       clearance margin — because the copy used to run straight across her face
+       (-438px at 1024). It is now that same line re-fitted through two points:
+         at 1440 -> 611px, unchanged, which keeps the 72px line on one line and
+                    the copy 40px clear of her hair;
+         at 1024 -> 408px, which deliberately reaches ~15px INTO her hair, by
+                    request — at the old 303px the copy stopped ~90px short of
+                    her and the 42px line could not fit.
+       Simplified, those two points give `0.7726*100vw - gutter - 321.5px`. The
+       `--page-gutter` term is still read from the token, so the cap continues to
+       absorb the gutter's step at 1281 (6vw capped at 80 -> 12.5vw).
+
+       ⚠️ **The copy now grazes her hair from 1024 to ~1280** (15-21px in, level
+       at 1280, clear above). That is intentional at the narrow end, not the old
+       bug — the old bug was the copy crossing her FACE, which starts a further
+       ~120px right and is still clear everywhere.
+
+       ⚠️ Capped at Figma's 839px text frame, reached at ~1500.
+
+       ⚠️ Verify one line if either value changes: `cap >= 8.276 * title-size`.
+       At 1024 that is 408 >= 348, at 1200 534 >= 453, at 1280 590 >= 501, at
+       1440 611 >= 596. The 1440 pair is the tight one. */
+    /* Where her face starts, in screen px — the same geometry as the copy cap,
+       carried 0.06·render-width further right than the hair edge (the face is
+       74% of the crop, the hair 68%): `1.025·100vw − 0.707·912 + 121`. Checks
+       out against measurement: 952px at 1440, 1444px at 1920. Conservative by
+       ~50px at 1024, where the real hero is shorter than 912 — which is the
+       right direction for a scrim that has to be clear ON her face. */
+    --hero-face-left: calc(1.025 * 100vw - 524px);
+    --hero-title-size: min(4.5rem, calc(2.625rem + 0.0721 * (100vw - 1024px)));
+    --hero-copy-max: min(
+      839px,
+      calc(0.7726 * 100vw - var(--page-gutter) - 321.5px)
+    );
   }
 
   .hero__background {
     inset: 0;
     height: auto; /* full-bleed again — the mobile 568px band is mobile-only */
+  }
+
+  /* ⚠️ **32% here, not the 20% the other two use.** The copy reported as hard to
+     read at 1024, and this is the one composition where it sits over the LIT
+     wall rather than over her: measured, the photo behind it is rgb(199,13,37)
+     and white on it is 5.99:1 bare, 8.28:1 under a 20% scrim, 10.4:1 under 32%.
+     A good luminance ratio is not the whole story on a saturated red — white on
+     vivid red vibrates — so this one is darkened past the Figma value on
+     purpose. In the tablet and mobile compositions the same copy lands on her
+     dark sweater and already measures 10.5–15.7:1, so they stay at 20%.
+     Horizontal here, and it HOLDS across the copy before ramping.
+     A plain two-stop ramp from 0.2 to 0 across the frame is what Figma draws,
+     but it decays as it goes: behind the middle of the headline it was only
+     0.10. Holding 0.2 to the copy's right edge — the same `gutter + copy-max`
+     the text itself is bounded by — and ramping from there to her face is what
+     "20% behind the text, 0 on her face" actually asks for.
+     Both stops are LENGTHS, not percentages: the copy's edge and her position
+     are both functions of the viewport and the hero's height, not fixed
+     fractions of the width. At 1440 that is 0.2 out to 791px, clear by 952px,
+     with her face measured at 1007px. */
+  .hero__gradient {
+    background: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.32) 0%,
+      rgba(0, 0, 0, 0.32) calc(var(--page-gutter) + var(--hero-copy-max)),
+      rgba(0, 0, 0, 0) var(--hero-face-left)
+    );
   }
 
   /* Her head is in the RIGHT third of the landscape crop, so when the hero is
@@ -2130,12 +2341,61 @@ button {
     gap: 48px; /* Figma: text bottom 396 → form top 444 */
   }
 
+  /* --- The copy has to clear the subject's face ----------------------------
+     The overlay lays the copy over the photo, and below ~1400 the two collide.
+     Measured, headline right edge vs. the left edge of her face: **−438px at
+     1024** (the headline ran x 61–899 across a face at 463–866), −74px at 1280,
+     −15px at 1440.
+     It is the crop geometry, not the copy. The hero is much squarer than the
+     crop's 2.104 aspect, so `cover` goes hard height-bound and only part of the
+     render's width is visible; `object-position: right` then keeps her head a
+     FIXED distance from the RIGHT edge, while the headline's width is fixed
+     from the LEFT gutter. So the narrower the viewport, the further the headline
+     reaches into her. Her face sits at roughly
+       `face_left ≈ 1.025·vw − 0.707·heroH`
+     which is where the numbers above come from.
+     ⚠️ **The cap and her position are coupled, so this is a fixed point, not a
+     value.** Capping the copy makes it TALLER (the headline wraps, the subtitle
+     takes more lines), a taller hero makes `cover` scale the render WIDER, and a
+     wider render pulls her face further left — the thing the cap was chasing. A
+     first pass at 37vw with a 72px headline still overlapped by 38px.
+     ⚠️ **The viewport's HEIGHT is part of this, which is what makes a
+     width-only ramp wrong.** A taller window means a taller hero, a taller hero
+     means `cover` scales the render wider, and a wider render pushes her further
+     left. At 1440 the copy cleared her on a 950px-tall window and ran straight
+     across her on a 1919px-tall one -- same width, 90px more hero, her hair 64px
+     further left.
+     So the cap is derived from the geometry rather than fitted to sample widths:
+     it reads the actual hero height (the same
+     `min(--hero-height, 100svh - reserve)` the hero itself uses) and the actual
+     `--page-gutter`. That also absorbs the gutter's STEP at 1281 -- 6vw capped
+     at 80 becomes 12.5vw, moving the copy's left edge 83px right, which an
+     earlier hand-fitted ramp cleared at 1280 and then missed by 56px at 1281.
+     ⚠️ **It aims at her HAIR, not her face** -- 68% of the crop, not 74%. Copy
+     sitting on her hair was the reported problem at 1440, so the face boundary
+     is not the target.
+     ⚠️ **It costs the Figma measure below ~1750.** The copy is narrower than the
+     839px frame and the headline wraps to two lines: at 1440 that is ~98px over
+     two lines with a four-line subtitle, where the design has 100px on one line
+     with two. That is what the clearance costs -- her hair starts at x=831 there
+     and a 100px single-line headline has to reach x=1017. Only a wider crop
+     fixes both. */
   .hero__content {
     padding-inline: 0;
+    max-width: var(--hero-copy-max);
   }
 
+  /* 42px at 1024 → 72px at 1440, one line throughout. Set on `.hero` next to the
+     cap it has to fit inside, because the two only work as a pair — see there. */
+  .hero__title {
+    font-size: var(--hero-title-size);
+  }
+
+  /* The container owns the measure now. Figma's 839px text frame is the value
+     the cap lands on at 1400+, so this is not a departure from the design — it
+     just stops the subtitle from being the one thing that ignores the cap. */
   .hero__subtitle {
-    max-width: 839px; /* Figma's text frame width */
+    max-width: none;
   }
 
   .hero__rfi {
@@ -2180,6 +2440,11 @@ button {
 
   .rfi__fields--5 {
     grid-template-columns: repeat(5, 1fr);
+    /* Much tighter than the 30px of the three-dropdown row: five fields across
+       have to be wide enough for their error messages to stay on one line, and
+       the reference shows this row closely spaced anyway. Every 1px off the gap
+       buys 0.8px of text width in each field. */
+    column-gap: 12px;
   }
 
   /* Step 2 carries more blocks (military + consent), which Figma spaces a step
@@ -2225,27 +2490,34 @@ button {
     flex: 0 1 371px;
   }
 
+  /* Both take the wide share of the row. NEITHER is capped: the options and the
+     benefits legend are each a single line, and a max-width forced the benefits
+     question ("If you enroll at Capella University, do you intend to use
+     education benefits earned through military service?") to wrap to two lines
+     on desktop, which the design never does.
+     The looseness a cap used to fix is handled at the radio level now — the
+     options are content-width rather than Fill columns, so a wide group no
+     longer spreads them out. */
   .rfi__question--formats,
-  /* The benefits question is a long single line, so it takes the wide share. */
   .rfi__question--benefits {
-    flex: 1 1 770px;
-    /* Two things this cap fixes, both about the row looking far looser than the
-       design even though the 32px gap is exactly right:
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 
-       1. When the SIBLING question is hidden — the common case, since the RN
-          question only shows for nursing — the group would stretch across the
-          whole row. Its three Fill columns went from ~215px to ~339px; the gaps
-          stayed 32px but each column then carried ~120px of dead space after
-          its label, so the options read as though spaced ~190px apart. Figma
-          never draws that state.
-       2. The hero's form is 1440 wide (Figma 9770:20293) while the Form
-          COMPONENT that specifies this row is 1170 (345:30649). Scaling by
-          percentage alone gave 295px columns at 1920 against the component's
-          235px.
+  /* Step 2's military pair: the first question takes only the width its own
+     legend needs (313px) instead of the 371px basis the step-1 pair uses, which
+     leaves the benefits legend the ~806px it needs to stay on ONE line. At the
+     fixed basis it was 30px short and wrapped. Step 1's RN question keeps 371px
+     — its legend is two lines by design. */
+  .rfi__questions > .rfi__question:first-child {
+    flex: 0 1 auto;
+  }
 
-       So: the component's absolute 770px, falling back to its share of the row
-       (770/1170) once the form is narrower than that. */
-    max-width: min(770px, 65.8%);
+  /* Content-width options in one row, left-aligned. As `flex: 1 0 0` thirds each
+     option was ~215px of mostly empty space and the labels wrapped mid-phrase. */
+  .rfi__radios--formats .rfi-radio {
+    flex: 0 0 auto;
+    min-width: 0;
   }
 
   .rfi__radios--formats {
@@ -2253,40 +2525,285 @@ button {
     gap: 32px;
   }
 
-  /* Each format option takes an equal share of the row. */
-  .rfi__radios--formats .rfi-radio {
-    flex: 1 0 0;
-    min-width: 0;
+
+}
+
+/* --- Hero, tablet 768–1023 ------------------------------------------------
+   Its own composition, not a squeezed desktop: the hero splits into two equal
+   full-bleed columns — the photo, with the headline over it, on the left, and
+   the dark form panel on the right. No page gutter on either.
+   Starts at 768 INCLUSIVE, so it wins over the mobile rules at exactly 768
+   (it is later in the file, same specificity). The rest of the page still
+   switches at 769 — only the hero has a layout at this size.
+   Everything inside the panel is inherited from the mobile rules; the only
+   things that differ are the ones below. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hero {
+    display: grid;
+    /* The hero HUGS the form: `clamp(--hero-tablet-min, panel + 2 * inset,
+       --hero-tablet-max)`, measured and set as `--hero-fit` by fitTabletHero()
+       in main.js, and TRANSITIONED — so the photo scales with the form instead
+       of the hero being sized for the tallest state and holding ~500px of empty
+       wall on step 1.
+       ⚠️ It has to come from JS. The hero's height here is content-driven, and a
+       content-driven height change is not a style change, so nothing transitions
+       it — `interpolate-size` only covers animating to or from the `auto`
+       keyword. Setting an explicit px value on each change is what gives the
+       transition something to interpolate.
+       The fallback is the step-2 size, so the layout is right even if the JS
+       never runs. */
+    min-height: var(--hero-fit, 828px);
+    transition: min-height var(--duration-med) var(--ease-out-expo);
+    padding: 0;
+    overflow: hidden;
+    /* Only ever visible in the left column, below the photo band, in the states
+       where the form runs past it — a failed submit adds 25px per errored row,
+       and the military follow-up adds a block. In the panel's own colour that
+       strip reads as the panel carrying on under the photo (mobile's
+       composition); in anything else it reads as a hole. */
+    background: var(--color-uni-black);
+  }
+
+  /* ⚠️ The band is a FIXED height — the hero's own maximum — and top-anchored,
+     so the photo is rendered at ONE scale and the hero reveals more or less of
+     it as it hugs the form. Letting the band hug the hero instead (`inset: 0`)
+     re-ran `cover` at every height and visibly zoomed the subject on a step
+     change, which is the opposite of what the hug is for.
+     `max(…, 100%)` is a safety net, not the normal path: if the JS never runs
+     the hero can exceed its clamp, and this keeps the band covering it rather
+     than leaving a gap.
+     ⚠️ **ONE image, filling the whole hero, MIRRORED.** There is no second
+     layer and no fill behind the panel — the photo is the background.
+     The mirror is what makes that possible, and it is measured, not stylistic.
+     In the crop her **face** is at x 396–594 (53–79%) and the wall is on her
+     **left** (0–34%); there is almost nothing to her right. Full-bleed at 768 the
+     crop scales 1.024×, so unmirrored her face lands at screen **406–608** —
+     entirely behind a right-hand panel, and only her left shoulder would show.
+     Flipped, her face is at **160–362** (clear of the panel at 384+) and the wall
+     she was standing to the right of now fills **507–768**, i.e. exactly the area
+     the panel floats over. Her face misses clearing the panel unmirrored by 21px
+     of source, so no amount of `object-position` or zoom fixes it.
+     ⚠️ The trade is that the photograph is reversed — her hair parts the other
+     way and the sweater's colour-block runs the other way. No text or logo is on
+     her, so nothing reads backwards. The alternatives are a re-cut asset with
+     wall on her right (the source does not have one — it turns beige from
+     x≈2450) or the panel on the left, against every reference frame.
+     ⚠️ `scaleX(-1)` goes in `transform`, alongside the parallax overshoot;
+     initHeroParallax() drives the `translate` property precisely so the two
+     compose instead of clobbering each other. */
+  .hero__background {
+    inset: 0 0 auto 0;
+    height: max(var(--hero-tablet-max), 100%);
+  }
+
+  .hero__bg-photo {
+    transform: scaleX(-1) scale(1.05);
+  }
+
+  /* Vertical, and BAND-relative — which is the whole trick here. Her face is
+     fixed in the frame (the band is a fixed 952px, top-anchored), so the stops
+     that clear it have to be measured against the band, not the hero. A
+     hero-relative ramp was tried first and drifts: the hero ranges 700–952px, so
+     the same percentages land 250px apart between states and it ended up sitting
+     *between* her chin and the headline, darkening the first and missing the
+     second.
+     Stops from a skin scan of the crop: her face and neck run 3.5%–35% of it and
+     there is no skin at all below 37%. 34% is her chin; the ramp is full by 37%.
+     ⚠️ Three percentage points (28px) is a STEEP ramp, and it is forced: at this
+     breakpoint the centred copy starts 8px below her chin, so 0 on her face and
+     20% behind the headline are only 8px apart. A gentler ramp (34→42%) left the
+     headline on 0.06. It reads as a soft edge rather than a band because the
+     whole delta is 0.2 of black.
+     Full width on purpose: the panel is opaque, so the ramp running behind it
+     costs nothing, and stopping at 50% would leave a visible step where the
+     darkened half meets the wall below the panel.
+     ⚠️ In the SHORTEST state (step 1, hero 700) the centred copy rides up to
+     y≈264, above her chin at 320 — so the headline's top edge sits above the
+     ramp and gets little scrim. That is the copy moving, not the scrim: the
+     alternative is darkening her jaw in that state. */
+  .hero__gradient {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 34%, rgba(0, 0, 0, 0.2) 37%);
+  }
+
+  .hero__inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* `center` — the panel is content-height and FLOATS in the middle of the
+       hero, so the wall shows above and below it. Not `stretch`: a panel that
+       runs the full height is a black column down the right-hand side. */
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  /* Taken OUT of the grid and laid over the left column, so the copy cannot
+     lengthen the hero: the hero's height has to be the panel's alone, or the
+     subtitle's line count would start moving the photo. 15px gutters, same as
+     mobile — the headline is 320px wide at 40px and only just fits 384 minus
+     those; at 24px it wraps.
+     ⚠️ **Anchored 43.7% down the BAND, not centred in the hero.** Centring put
+     the copy at y 328–480, straight across her white collar, where a patch scan
+     measured white text at **2.11:1** — the copy was reported as hard to read
+     and that is why. Averages hid it: the same line averaged 10.45:1, because
+     her dark hair either side of the collar pulls the mean up.
+     Row-by-row worst-patch contrast down the copy column, scrim applied:
+       y 200–392  2.0–4.8   her face, collar, lit shoulder
+       y 416–632  7.3–12.5  her sweater  ← the copy goes here
+       y 656–800  6.9–7.5   sweater into skirt
+     416px is the top of that band. It has to be a FIXED offset rather than a
+     percentage of the hero, because the photo is fixed (a 952px band, top
+     anchored) while the hero ranges 700–952 — a hero-relative position would
+     walk the copy back onto the collar. Expressed off the token so the two stay
+     in step. More scrim is not the fix: a 227,208,199 collar needs ~0.6 black
+     before it clears 4.5:1, which would bury the photo. */
+  .hero__content {
+    position: absolute;
+    inset: 0 50% 0 0;
+    justify-content: flex-start;
+    padding: calc(0.437 * var(--hero-tablet-max)) 15px 0;
+  }
+
+  /* `.display-xl`'s `10vw` term is sized to the VIEWPORT, and in a half-width
+     column that comes out at 77px and stacks the headline three lines deep. The
+     same 10vw of the COLUMN is 5vw, which lands on the clamp's own 2.5rem floor
+     at 768 — 40px, one line, 320 of the 354px available — and grows to 56px by
+     1120. Capped at 3.5rem so it never overtakes the desktop step. */
+  .hero__title {
+    font-size: clamp(2.5rem, 5vw, 3.5rem);
+  }
+
+  .hero__rfi {
+    grid-column: 2;
+    /* Content-height, floating in the middle of the hero (the `align-items:
+       center` above). No `margin-top`: the inset above the panel is whatever the
+       centring leaves, which is 250px on step 1 and 24px in the tallest state —
+       the reference frames show it varying the same way, 88px on one and 153px
+       on another. */
+    padding: 32px 16px 24px;
+    gap: 20px;
+  }
+
+  /* --- The panel's vertical rhythm at this width ---------------------------
+     Everything below tightens the mobile spacing, so that step 2 fits the 700px
+     the 768 reference gives it — 788px of hero less the 88px the panel starts
+     down. On the mobile rhythm it came to 852. The budget is no longer a hard
+     limit now the hero is content-height, but it is still what keeps the photo
+     band (a fixed 788) covering the whole column in the ordinary states, so it
+     is worth holding. Each value is measured off the reference; the TOTAL is
+     what matters, so if a block is added to step 2, re-measure rather than just
+     adding a gap. */
+  .rfi__head {
+    gap: 16px;
+  }
+
+  /* 32px, not the 44px the other two layouts give these tabs: 44 puts the
+     stepper 25px over budget on its own. Still clears 2.5.8 (24px) — and the
+     tab is the full half-panel wide, so the shortfall against the 44px AAA
+     target is on one axis only. */
+  .rfi__step-btn {
+    min-height: 32px;
+  }
+
+  .rfi__step {
+    padding-bottom: 4px;
+  }
+
+  .rfi__question-legend {
+    margin-bottom: 8px;
+  }
+
+  .rfi__panel,
+  .rfi__panel[data-rfi-panel='2'] {
+    gap: 14px;
+  }
+
+  .rfi__prompt {
+    gap: 8px;
+  }
+
+  .rfi__fields {
+    gap: 12px;
+  }
+
+  /* 12px at 1.4. The mobile 13px/1.5 runs the consent to seven lines and it is
+     the single biggest block in the panel. 1.4.12 constrains what happens when
+     a USER overrides line-height to 1.5, not the authored value — and this block
+     has room to grow by that much, since it is the copy above the buttons rather
+     than a fixed-height box. */
+  .rfi__consent {
+    font-size: var(--text-ui-sm);
+    line-height: 1.4;
+  }
+
+  /* Two across in a ~384px panel: 170px each, comfortably wider than the 148px
+     a five-across row would give. */
+  .rfi__fields--5 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  /* Email is the odd one out of five and the longest value, so it takes the full
+     row rather than leaving a hole (Figma tablet frame: first/last, email,
+     phone/zip). Positional because the row's order is the tab order — if a field
+     is ever added here, re-count. */
+  .rfi__fields--5 > .rfi-field:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  /* Tighter than mobile's 24px: the two full-width buttons are stacked in a
+     narrow panel and 24px pushed the hero taller than its budget. */
+  .rfi__actions {
+    gap: 16px;
   }
 }
 
-/* Tablet / small desktop: the desktop layout holds, but 5 text inputs in a row
-   would each be ~150px wide, so step 2 wraps to a 2-up grid and the hero cap
-   comes down to match. */
-@media (min-width: 769px) and (max-width: 1199px) {
+/* The hero's hug is the one place in the form where a height animates, so it is
+   the one place `prefers-reduced-motion` has to switch off. The height itself
+   still changes — it just lands immediately. */
+@media (prefers-reduced-motion: reduce) and (min-width: 768px) and (max-width: 1023px) {
+  .hero {
+    transition: none;
+  }
+}
+
+/* Small-desktop hero cap, 1024–1199. Its own query: the step-2 field layout
+   switches at 1023 but the hero's height should not — moving the cap with it
+   made the hero 152px taller at 1024 on a tall viewport, which re-crops the
+   photo for no reason. */
+@media (min-width: 1024px) and (max-width: 1199px) {
   .hero {
     min-height: min(var(--hero-height-tablet-max), calc(100svh - var(--hero-fold-reserve)));
   }
 
-  .rfi__fields--5 {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px 30px;
-  }
+  /* (The copy's clearance over the subject is handled for the whole overlay
+     range, not just this band — see `--hero-copy-max` above.) */
 
-  /* Paired questions need the full width here — side by side, the three format
-     options would be ~110px each and wrap mid-label, and the benefits question
-     is a long line that would stack to four. */
-  .rfi__followups,
-  .rfi__questions {
-    flex-direction: column;
-    gap: 24px;
-  }
+  /* Still FIVE across here, as the reference is at 1024, which leaves ~171px
+     fields and ~138px of text width inside each message bar.
+     ⚠️ This band used to drop the messages to **10px** to fit. They are 12px
+     again because the COPY was shortened instead — the longest is now "Phone is
+     required" at 137.7px. That is 0.3px of slack against 138, so the copy is now
+     the constraint: **re-measure here before changing any message string.** The
+     old wording ("Please enter your first name") needed 165px and could never
+     fit at 12px. */
+}
 
-  .rfi__question,
-  .rfi__question--formats,
-  .rfi__question--benefits {
-    flex: 0 1 auto;
-    width: 100%;
+/* The narrow end of the two-column band. The 2-up row gives 170px fields, so
+   the message bar has ~142px of text width once its padding, icon and borders
+   are taken out — the tightest place in the form.
+   ⚠️ The messages are **12px here, not 10px**, because the copy was shortened to
+   fit rather than the type: the longest is now "Phone is required" at 126.7px
+   against 142px. The 6px side padding and 3px icon gap below are what buy the
+   last 5px, and they stay for that reason.
+   ⚠️ **The copy is the constraint now, not the font size.** Before, the bar held
+   "Please enter your first name" — 137.4px at *10px* against 137px of room, i.e.
+   it wrapped by four tenths of a pixel, which is what forced the 10px tier in
+   the first place. Re-measure before rewording any message. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .rfi-field__error {
+    padding-inline: 6px;
+    gap: 3px;
   }
 }
 
@@ -3503,9 +4020,10 @@ button {
 
 /* Responsive */
 @media (min-width: 768px) {
-  /* NOTE: the hero's own breakpoint is 769px, not 768px, so it lines up exactly
-     with the `(max-width: 768px)` query on the <picture> mobile source. See the
-     hero desktop block next to the hero rules above. */
+  /* NOTE: the hero does NOT switch here. It has three layouts of its own —
+     stacked below 768, two columns at 768–1023, full-bleed from 1024 — and they
+     line up with the `(max-width: 1023px)` query on the <picture> portrait
+     source. See the hero blocks above. */
 
   .program-finder {
     padding: 64px 0;

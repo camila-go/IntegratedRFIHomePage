@@ -31,7 +31,9 @@
   --text-display: 3.75rem; /* 60px */
   --text-display-stats: 4.6875rem; /* 75px */
   --text-h2: 3rem; /* 48px */
-  --text-program-finder: 2.8125rem; /* 45px */
+  --text-program-finder: 2.625rem; /* 42px — by request, at 768 and up. Used
+     only by `.program-finder__title`; the ≤768 rule clamps against this same
+     token, so 768 itself resolves to 42 either way. */
   --text-h4: 1.75rem; /* 28px */
   --text-h5: 1.5rem; /* 24px */
   --text-h6: 1.25rem; /* 20px */
@@ -47,7 +49,19 @@
      sticky header, capped at the design height. Mobile is content-driven: the
      photo is a fixed band and the RFI panel below it is as tall as it needs. */
   --hero-height: 912px; /* desktop cap (Figma 9770:20288) */
-  --hero-height-tablet-max: 760px; /* tablet / small-desktop cap (769-1199px) */
+  --hero-height-tablet-max: 760px; /* small-desktop cap (1024-1199px) */
+  /* The two-column hero (768-1023) HUGS the form panel instead of being sized
+     for the tallest state: `hero = clamp(min, panel + 2 * inset, max)`, set by
+     fitTabletHero() in main.js and animated, so the photo scales with the form
+     rather than the hero holding ~500px of empty wall on step 1.
+     The bounds are here rather than in the JS so the numbers stay with the rest
+     of the layout. Measured panel heights at 768: step 1 bare 451, +formats 635,
+     nursing +RN 739, step 2 700, +benefits 828, +benefits +5 errors 903 — so the
+     max is 903 + 2*24 and nothing ever clips. The min keeps step 1 from
+     squeezing the photo into a letterbox. */
+  --hero-tablet-min: 700px;
+  --hero-tablet-max: 952px;
+  --hero-tablet-inset: 64px; /* wall above and below the floating panel */
   --hero-photo-mobile: 568px; /* mobile photo band (Figma 9770:20398) */
   --page-gutter: clamp(15px, 12.5vw, 240px);
   --radius-pill: 32px;
@@ -97,22 +111,34 @@
   --menu-shadow: 0 5px 20px rgba(0, 0, 0, 0.1); /* CU/elevation 1 */
 
   /* Form field states — EC design system, ↳ Dropdown (329:14428) and
-     ↳ Input field (264:4641). The hero form is on a dark surface, so these are
-     the DARK-theme resolutions of the status tokens; the light values are noted
-     beside each for whenever a light-surface form needs them.
-     ⚠️ Two of these differ between the two components in Figma — see the note
-     above `.rfi-field--error` in styles.css before "correcting" them. */
-  --field-focus-ring: #0f7bd9; /* gl-color-outline-focused (both themes) */
-  --field-error-line: #ffa8a8; /* dark; light = #d91111 */
-  --field-error-surface: #9c0c0c; /* dark; light = #fff5f5 */
-  --field-error-text: #ffffff; /* dark; light = #9c0c0c */
-  --field-success: #b0e8c1; /* dark; light = #0a822f */
-  --field-outline: #adadad; /* dropdown-color-outline-dark */
-  --field-label: #adadad; /* color-neutral-subtle-on-surface (dark) */
-  /* uni-black at 20% — the Fill Figma puts on the field itself. It is what
-     makes the 12px hint and the hairline border legible against the brighter
-     parts of the hero photo; see the note on `.rfi-field__box`. */
-  --field-fill: rgba(33, 35, 34, 0.2); /* #212322 @ 20% */
+     ↳ Input field (264:4641).
+     ⚠️ These are the LIGHT-theme resolutions, because the fields are filled
+     WHITE — they are a light surface sitting on a dark photo, so the dark-theme
+     values (kept in the comments beside each) would be invisible on them. The
+     form used to be transparent over the photo and did use the dark set; if it
+     ever goes back, swap each value for the one in its comment.
+     Filling them white also clears most of the contrast failures the
+     accessibility pass found; see HANDOFF §5b.
+     ⚠️ Two of the error values differ between the two components in Figma — see
+     the note above `.rfi-field--error` in styles.css before "correcting" them. */
+  /* Grey, not the DS blue. #0f7bd9 was chosen when the field was transparent
+     over the photo, where it measured 1.0-1.7:1 and was effectively invisible;
+     on a white fill the design uses a neutral ring instead. Still 5.5:1 on
+     white, so it clears 1.4.11. */
+  --field-focus-ring: #696969;
+  --field-error-line: #d91111; /* light; dark = #ffa8a8 */
+  --field-error-surface: #fff5f5; /* light; dark = #9c0c0c */
+  --field-error-text: #9c0c0c; /* light; dark = #ffffff */
+  --field-success: #0a822f; /* light; dark = #b0e8c1 */
+  --field-outline: #adadad; /* dropdown-color-outline-light */
+  --field-label: #696969; /* color-neutral-subtle-on-surface (light) */
+  --field-fill: var(--color-white);
+  --field-text: var(--color-uni-black); /* the value, on the white fill */
+  --field-caret: var(--color-uni-red); /* red chevron */
+  /* Error-message size. A token because the five-across step-2 row is the
+     binding constraint and it changes per breakpoint — see the note above
+     `.rfi-field__error` in styles.css. */
+  --field-error-size: var(--text-ui-sm); /* 12px */
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 0.2s;

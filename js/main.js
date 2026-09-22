@@ -329,11 +329,18 @@ function initHeroRfi() {
   // then depends only on the viewport, never on form state, so the photo holds
   // still. It also stops the buttons moving under the cursor on a step change.
   // Reserving is closer to the design anyway: Figma's hero is a fixed height.
-  // Desktop only. Below 769px the photo is a FIXED 568px band whose crop does
-  // not depend on the form at all (verified: zero drift across every state), so
-  // reserving there buys nothing and costs a lot — the tallest state is ~911px,
-  // which would leave step 1 with hundreds of px of empty dark panel.
-  const RESERVE_AT = window.matchMedia('(min-width: 769px)');
+  // Desktop only, 1024px up — the one range where the form is transparent over a
+  // full-bleed photo, so the reserved height is invisible and the only thing it
+  // can move is the crop.
+  //
+  // Below that the form sits in an OPAQUE panel, and reserving the tallest state
+  // inside one shows: at 768–1023 it left ~300px of empty dark panel under step
+  // 1's single button (the tallest state is step 1 with every follow-up revealed,
+  // in a 384px-wide column). Those two layouts keep the photo still a different
+  // way instead — it is a fixed-height band, so its crop does not depend on the
+  // form's height at all and there is nothing to reserve against. Verified: zero
+  // drift across every state at 375 and 768.
+  const RESERVE_AT = window.matchMedia('(min-width: 1024px)');
 
   function reservePanelHeight() {
     if (!RESERVE_AT.matches) {
@@ -424,7 +431,7 @@ function initHeroRfi() {
       // this (which happens on every change event) can't wipe a valid choice.
       if (specSelect.dataset.forArea !== (hasArea ? areaSelect.value : '')) {
         specSelect.dataset.forArea = hasArea ? areaSelect.value : '';
-        specSelect.innerHTML = '<option value="">Specialization selection</option>';
+        specSelect.innerHTML = '<option value="">Program/Specialization</option>';
         (options || []).forEach((label) => {
           const option = document.createElement('option');
           option.value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -512,14 +519,20 @@ function initHeroRfi() {
   // preventScroll on every step focus: the panels are different heights, so a
   // default focus() scrolls the page to chase the field and drags the headline
   // off screen — you'd land on step 2 with the hero's top half gone.
+  // Shared by the next button and the STEP 2 tab, so the two routes into step 2
+  // can't drift apart on what counts as a problem or where focus lands.
+  function focusFirstProblem() {
+    const firstProblem =
+      form.querySelector('.rfi-field--error .rfi-field__control') ||
+      (isDisqualified() ? areaSelect : null) ||
+      form.querySelector('[data-rfi-rn]:not([hidden]) .rfi-radio__input') ||
+      form.querySelector('[data-rfi-formats]:not([hidden]) .rfi-radio__input');
+    firstProblem?.focus({ preventScroll: true });
+  }
+
   next?.addEventListener('click', () => {
     if (!step1Complete()) {
-      const firstProblem =
-        form.querySelector('.rfi-field--error .rfi-field__control') ||
-        (isDisqualified() ? areaSelect : null) ||
-        form.querySelector('[data-rfi-rn]:not([hidden]) .rfi-radio__input') ||
-        form.querySelector('[data-rfi-formats]:not([hidden]) .rfi-radio__input');
-      firstProblem?.focus({ preventScroll: true });
+      focusFirstProblem();
       return;
     }
     showStep(2);
@@ -529,6 +542,29 @@ function initHeroRfi() {
   back?.addEventListener('click', () => {
     showStep(1);
     degreeSelect?.focus({ preventScroll: true });
+  });
+
+  // The stepper tabs navigate. Going BACK to step 1 is always allowed; jumping
+  // FORWARD to step 2 runs the same gate as "Learn program details", so the two
+  // routes into step 2 can't disagree about whether step 1 is complete.
+  form.querySelectorAll('[data-rfi-goto]').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.rfiGoto;
+      const current = panels.find((p) => !p.hidden)?.dataset.rfiPanel;
+      if (target === current) return;
+
+      if (target === '2') {
+        if (!step1Complete()) {
+          focusFirstProblem();
+          return;
+        }
+        showStep(2);
+        form.querySelector('#rfi-first')?.focus({ preventScroll: true });
+      } else {
+        showStep(1);
+        degreeSelect?.focus({ preventScroll: true });
+      }
+    });
   });
 
   // No endpoint to post to in this prototype, so keep the page put and mark up
@@ -552,11 +588,58 @@ function initHeroRfi() {
     firstBad?.focus({ preventScroll: true });
   });
 
+  // --- the two-column hero hugs the form (768-1023) ------------------------
+  // At this breakpoint the hero is two columns, the panel floats in the middle
+  // of the right one, and the photo fills the left. The hero's height is the
+  // panel's plus an inset above and below — so it HUGS the form rather than
+  // being sized for the tallest state, which would leave ~500px of empty wall
+  // on step 1. Clamped so step 1 can't squeeze the photo into a letterbox and
+  // the worst state (step 2 + benefits + five errors) can't stretch it.
+  //
+  // Why JS at all: the hero's height here is content-driven, and a
+  // content-driven height change is not a style change, so there is nothing for
+  // CSS to transition (`interpolate-size` only covers animating to or from the
+  // `auto` keyword). Writing an explicit px value on each change is what gives
+  // the `transition: min-height` in the tablet block something to interpolate,
+  // which is what stops the photo snapping between steps.
+  //
+  // The bounds live in tokens.css so they sit with the rest of the layout.
+  const HUG_AT = window.matchMedia('(min-width: 768px) and (max-width: 1023px)');
+  const heroEl = form.closest('.hero');
+
+  function fitTabletHero() {
+    if (!heroEl) return;
+    if (!HUG_AT.matches) {
+      heroEl.style.removeProperty('--hero-fit');
+      return;
+    }
+    const cs = getComputedStyle(heroEl);
+    const num = (name, fallback) => parseFloat(cs.getPropertyValue(name)) || fallback;
+    const min = num('--hero-tablet-min', 700);
+    const max = num('--hero-tablet-max', 952);
+    const inset = num('--hero-tablet-inset', 64);
+    // The panel is content-height (`align-items: center` on the grid), so this
+    // reads the form's own height and nothing the hero does feeds back into it.
+    const panel = form.getBoundingClientRect().height;
+    const fit = Math.min(max, Math.max(min, Math.round(panel + 2 * inset)));
+    heroEl.style.setProperty('--hero-fit', `${fit}px`);
+  }
+
   syncChain();
   syncFollowups();
   syncBenefits();
   showStep(1);
   reservePanelHeight();
+  fitTabletHero();
+
+  // A ResizeObserver on the PANEL catches every reason its height changes — step
+  // swap, a revealed follow-up, an error message appearing — in one place. Safe
+  // here, unlike for reservePanelHeight(): this writes the HERO's height, and
+  // the panel's own height doesn't depend on it.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(fitTabletHero).observe(form);
+  }
+  HUG_AT.addEventListener('change', fitTabletHero);
   // Re-reserve on resize only — width changes how the copy wraps, so the
   // tallest state changes too. Deliberately NOT driven off a ResizeObserver:
   // this function mutates the very heights such an observer would watch.
@@ -565,7 +648,10 @@ function initHeroRfi() {
     'resize',
     () => {
       window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(reservePanelHeight, 150);
+      resizeTimer = window.setTimeout(() => {
+        reservePanelHeight();
+        fitTabletHero();
+      }, 150);
     },
     { passive: true }
   );
