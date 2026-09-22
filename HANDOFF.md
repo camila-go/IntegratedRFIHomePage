@@ -602,6 +602,27 @@ them invisible. The `:autofill` and `:-webkit-autofill` rules are kept **separat
 because a browser that doesn't recognise one selector discards the entire rule
 it appears in.
 
+⚠️ **Whether an EMPTY field is an error depends on `submitAttempted`**, a flag
+in `initHeroRfi()` set by the submit handler. Before a submit, blurring an
+untouched field must not invent an error; after one, an empty required field IS
+the error and blurring it must not clear it.
+
+Without the flag `evaluate()` cleared the error on any empty field, which looked
+like this: submit step 2 empty, focus lands on First name, click anywhere else
+and **that one field's error vanishes while the other four stay** — only the
+focused field blurs, so only it got cleared. Verified after the fix: no error on
+a pre-submit blur; all five flagged on an empty submit; all five still flagged
+after blurring the focused one; typing a valid value clears that one to success;
+clearing it again and blurring brings the error back.
+
+⚠️ **The ZIP field is "Zip/Postal" and has no format pattern.** It used to be
+`pattern="[0-9]{5}"` with `inputmode="numeric"`, which rejects K1A 0B1 and
+SW1A 1AA — and rejected them with "Zip/Postal is required", a message that does
+not describe what went wrong (3.3.1). With `required` as the only rule that
+message is always accurate. Re-adding a format check means making the message
+dynamic: one string for empty, another for malformed. The same mismatch still
+exists on email and phone — see ACCESSIBILITY-AUDIT.md, open item 3.
+
 *Behaviourally:* **autofill never fires `blur`** — the browser fills the field
 without it ever being focused — so the blur-only validation left autofilled
 fields with no state at all: no tick on a valid value, no error on a bad one,
@@ -679,7 +700,7 @@ padding, icon and borders are taken out.
 ⚠️ **There is no 10px tier any more, and the copy is now the constraint.** Two
 bands used to drop the messages to 10px to fit. The strings were shortened
 instead — measured at 12px: "First name is required" 126.7px, "Last name is
-required" 125.3px, "Phone is required" 102.2px, "Zip code required" 102.9px,
+required" 125.3px, "Phone is required" 102.2px, "Zip/Postal is required" 124.9px,
 "Email is required" 96.7px. The binding case is **1024, where a 171px field
 leaves 138px and the longest message is 137.7px** — 0.3px of slack. **Re-measure
 before rewording any message.** The wording this replaced ("Please enter your

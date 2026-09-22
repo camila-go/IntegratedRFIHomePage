@@ -100,7 +100,7 @@ wording needed 165px of text width against ~138–142px available.
 | Please enter your last name | **Last name is required** | 125.3px |
 | Phone number is required | **Phone is required** | 102.2px |
 | Email is required | *unchanged* | 96.7px |
-| Zip code required | *unchanged* | 102.9px |
+| Zip code required | **Zip/Postal is required** | 124.9px |
 
 All five now render at **12px on one line** at every width. Note that "Phone
 number is required" also had to be shortened — at 150.6px it became the longest
@@ -110,6 +110,9 @@ on its own.
 > ⚠️ **The copy is now the constraint, not the font size.** The binding case is
 > 1024, where a 171px field leaves 138px and the longest message is 137.7px —
 > **0.3px of slack**. Re-measure before rewording any message.
+
+*Updated 2026-09-22: the ZIP field became “Zip/Postal”, so its message is now
+“Zip/Postal is required” at 124.9px — still inside 138px.*
 
 ---
 
@@ -217,7 +220,15 @@ opinion.
    exempt under that criterion's inline exception. The stepper tabs are 32px
    rather than 44 because the panel's vertical budget at 768 is fully spent; see
    HANDOFF §5e.
-3. **Error announcement should get one manual pass.** `role="alert"` on a bar
+3. **One message per field, whatever the failure.** Each field has a single
+   static string, so a malformed value reports the same text as an empty one —
+   `type="email"` with “not-an-email” still says “Email is required”, which does
+   not describe what went wrong (3.3.1). The ZIP field was taken out of this
+   category on 2026-09-22 by removing its `[0-9]{5}` pattern: with `required` as
+   its only rule, “Zip/Postal is required” is always accurate. Email and phone
+   still have the mismatch. Fixing them properly means a dynamic message — one
+   string for empty, another for malformed.
+4. **Error announcement should get one manual pass.** `role="alert"` on a bar
    that goes from `hidden` to visible is announced by current browsers, but a
    persistent live region is the more robust pattern. This is the one item below
    that a human should verify with real AT.
@@ -278,6 +289,8 @@ Re-run this audit if any of the following change, because each one has a
 measured margin that is thinner than it looks:
 
 - [ ] Any error message wording — 0.3px of slack at 1024 (finding 3).
+- [ ] Any field's validation rules — if a format check is added back, its
+      message has to distinguish empty from malformed (see open item 3).
 - [ ] The hero photograph or either crop — every contrast figure over the photo,
       and the safe-band rows, are specific to this image.
 - [ ] The hero copy's position or size at any breakpoint — it was moved off a

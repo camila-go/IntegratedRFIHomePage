@@ -486,10 +486,23 @@ function initHeroRfi() {
   // Validate on blur, not on every keystroke: marking a half-typed email as an
   // error is noise. Success shows the same way, so a field the user completed
   // reads as done.
+  //
+  // ⚠️ Whether an EMPTY field is an error depends on whether the form has been
+  // submitted yet, which is what this flag tracks. Before a submit, tabbing
+  // through an untouched field must not invent an error — nagging someone for a
+  // field they have not reached yet. After one, an empty required field IS the
+  // error, and blurring it must not clear it.
+  //
+  // Without the flag, `evaluate()` cleared the error on any empty field. The
+  // visible bug: submit step 2 empty, focus lands on First name, click anywhere
+  // else and that one field's error vanishes while the other four stay — only
+  // the focused field blurs, so only it got cleared.
+  let submitAttempted = false;
+
   form.querySelectorAll('.rfi-field__input').forEach((input) => {
     const evaluate = () => {
       if (!input.value) {
-        setError(input, false);
+        setError(input, submitAttempted && input.required);
         setSuccess(input, false);
         return;
       }
@@ -573,6 +586,9 @@ function initHeroRfi() {
     event.preventDefault();
     const step2 = panels.find((panel) => panel.dataset.rfiPanel === '2');
     if (!step2 || step2.hidden) return;
+    // From here on an empty required field stays flagged on blur — see the note
+    // above `evaluate()`.
+    submitAttempted = true;
     let firstBad = null;
     step2.querySelectorAll('.rfi-field__input').forEach((input) => {
       const valid = input.checkValidity();

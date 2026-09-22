@@ -722,16 +722,22 @@
                 <div class="rfi-field" data-rfi-field>
                   <div class="rfi-field__shell">
                     <div class="rfi-field__box">
-                      <label class="visually-hidden" for="rfi-zip">ZIP code</label>
+                      <label class="visually-hidden" for="rfi-zip">Zip/Postal</label>
+                      <!-- No `pattern` and no numeric `inputmode`. The field
+                           covers postal codes as well as US ZIPs now, so the
+                           5-digit rule would reject K1A 0B1 or SW1A 1AA — and
+                           it would reject them with "Zip/Postal is required",
+                           which is not what went wrong (3.3.1). With `required`
+                           as the only rule, that message is always accurate.
+                           Re-adding format checking means making the message
+                           dynamic: one string for empty, another for malformed. -->
                       <input
                         id="rfi-zip"
                         class="rfi-field__control rfi-field__input"
                         type="text"
                         name="zip"
                         autocomplete="postal-code"
-                        inputmode="numeric"
-                        pattern="[0-9]{5}"
-                        placeholder="ZIP code"
+                        placeholder="Zip/Postal"
                         aria-describedby="rfi-zip-error"
                         required
                       />
@@ -739,7 +745,7 @@
                     </div>
                     <p class="rfi-field__error" id="rfi-zip-error" role="alert" hidden>
                       <i class="rfi-field__error-icon fa-sharp fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                      <span>Zip code required</span>
+                      <span>Zip/Postal is required</span>
                     </p>
                   </div>
                 </div>
