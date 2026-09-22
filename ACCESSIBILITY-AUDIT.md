@@ -5,7 +5,8 @@
 **Scope:** the hero section and the two-step Request Program Information form
 (`.hero`, `.hero__rfi`), plus the program-finder headline directly below it
 **Widths tested:** 320 · 375 · 768 · 1000 · 1024 · 1200 · 1281 · 1440 · 1920
-**Code audited:** commit `e5d0128`; fixes landed in `e5d0128` and `f79a28d`
+**Code audited:** `e5d0128` → `cd36043`. Findings 1–3 landed in `e5d0128`; the
+scrim easing in `f79a28d`; the Zip/Postal change in `cd36043`.
 
 ---
 
