@@ -2287,6 +2287,22 @@ button {
        ~50px at 1024, where the real hero is shorter than 912 — which is the
        right direction for a scrim that has to be clear ON her face. */
     --hero-face-left: calc(1.025 * 100vw - 524px);
+    /* The scrim's three reference points (used by `.hero__gradient` below).
+       `hold` is where the copy ends, `clear` is where the ramp reaches zero, and
+       `span` is the run between them — the thing that decides how soft the fade
+       looks.
+       ⚠️ `clear` is `--hero-face-left + 48px`, NOT `--hero-face-left`. The face
+       variable is deliberately conservative — it assumes the 912px design hero,
+       where the real one is usually shorter — which is right for the COPY (text
+       must not touch her) but was starving the scrim: at 1024 it left a **56px**
+       run for a 0.32 drop, which is the harsh edge. Measured there, the copy's
+       ink ends at 457, her hair starts at 457 and her face proper only at 568,
+       so the 470–526 the ramp was squeezed into is all hair. The +48 tracks the
+       real face line closely (574 vs 568 at 1024, 1000 vs ~1007 at 1440) and
+       nearly doubles the run: **104px at 1024, 209px at 1440.** */
+    --hero-scrim-hold: calc(var(--page-gutter) + var(--hero-copy-max));
+    --hero-scrim-clear: calc(var(--hero-face-left) + 48px);
+    --hero-scrim-span: calc(var(--hero-scrim-clear) - var(--hero-scrim-hold));
     --hero-title-size: min(4.5rem, calc(2.625rem + 0.0721 * (100vw - 1024px)));
     --hero-copy-max: min(
       839px,
@@ -2317,12 +2333,23 @@ button {
      are both functions of the viewport and the hero's height, not fixed
      fractions of the width. At 1440 that is 0.2 out to 791px, clear by 952px,
      with her face measured at 1007px. */
+  /* ⚠️ Five stops, easing out — not a two-stop ramp. A linear ramp has a corner
+     at each end where its slope jumps, and the eye reads those corners as a hard
+     edge in a flat field of colour; both were visible in the red. The three
+     middle stops trace a smoothstep (0.32 → 0.27 → 0.16 → 0.05 → 0 at quarter
+     points), so the fade leaves the hold gently and arrives at zero gently.
+     Where that leaves the subject: the alpha at her real face edge is ~0.012 at
+     1024 and 0 at 1440 — the ramp is over her hair, and by her face it is gone.
+     The hold is untouched, so contrast behind the copy is unchanged. */
   .hero__gradient {
     background: linear-gradient(
       90deg,
       rgba(0, 0, 0, 0.32) 0%,
-      rgba(0, 0, 0, 0.32) calc(var(--page-gutter) + var(--hero-copy-max)),
-      rgba(0, 0, 0, 0) var(--hero-face-left)
+      rgba(0, 0, 0, 0.32) var(--hero-scrim-hold),
+      rgba(0, 0, 0, 0.27) calc(var(--hero-scrim-hold) + 0.25 * var(--hero-scrim-span)),
+      rgba(0, 0, 0, 0.16) calc(var(--hero-scrim-hold) + 0.5 * var(--hero-scrim-span)),
+      rgba(0, 0, 0, 0.05) calc(var(--hero-scrim-hold) + 0.75 * var(--hero-scrim-span)),
+      rgba(0, 0, 0, 0) var(--hero-scrim-clear)
     );
   }
 

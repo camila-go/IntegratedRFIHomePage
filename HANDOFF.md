@@ -1125,7 +1125,28 @@ actually lands.
 | --- | --- | --- | --- |
 | ≤767 | vertical, band-relative | `0 at 37% → 0.2 at 42%` | her skin ends at 206px (36%), the copy starts at 240px (42%) — **0 on her face, full 0.2 behind both headline and subtitle** |
 | 768–1023 | vertical, band-relative | `0 at 34% → 0.2 at 37%` | 0 over her face (chin at 320px), 0.2 below it |
-| ≥1024 | horizontal, length stops | **`0.32`** to `gutter + copy-max` → `0` at `--hero-face-left` | 0.32 flat behind the whole copy, 0 from her face on — at 1440 that is out to 791px, clear by 952px, face measured at 1007px |
+| ≥1024 | horizontal, **5 eased stops** | `0.32` held to `--hero-scrim-hold`, then `0.27 / 0.16 / 0.05 / 0` across `--hero-scrim-span` | 0.32 flat behind the whole copy, ~0 by her face — at 1440: held to 791px, stops at 843/896/948, clear at 1000px, her face at 975px reading 0.024 |
+
+⚠️ **The desktop fade is eased, and it needed two changes to stop reading as a
+hard edge.**
+
+1. **Five stops, not two.** A linear ramp's slope jumps at each end, and the eye
+   reads those corners as an edge in a flat field of red. The middle stops trace
+   a smoothstep, so the slope profile per px at 1024 goes
+   `0 → 0.0019 → 0.0042 → 0.0042 → 0.0019` — soft at both ends. (The peak slope
+   at 1440 is actually a touch *higher* than the old uniform ramp, 0.00211 vs
+   0.00199; the smoothness comes from the eased ends, not a gentler middle.)
+2. **A longer run**, via `--hero-scrim-clear: --hero-face-left + 48px`. The face
+   variable is deliberately conservative (it assumes the 912px design hero) which
+   is right for the copy but was starving the scrim: at 1024 it left **56px** for
+   a 0.32 drop. Measured there, the copy's ink ends at 457, her hair starts at
+   457, and her face proper only at 568 — so the 470–526 the ramp was crushed
+   into is all hair. The +48 tracks the real face line (574 vs 568 at 1024, 1000
+   vs ~1007 at 1440) and nearly doubles the run: **104px at 1024, 209px at 1440,
+   169px at 1281.**
+
+The hold is untouched, so contrast behind the copy is unchanged at 0.32. Verified
+stop order stays monotonic across the gutter step at 1281 (hold 668, clear 837).
 
 ⚠️ **Desktop is 32%, not 20%, and that is deliberate.** It is the one composition
 where the copy sits over the LIT wall rather than over her. Measured at 1024, the
