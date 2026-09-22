@@ -1424,6 +1424,12 @@ the next scroll.
 
 ---
 
+The full audit — findings, every contrast measurement, keyboard and screen-reader
+results, the method used, and a retest checklist — is in
+[`ACCESSIBILITY-AUDIT.md`](ACCESSIBILITY-AUDIT.md). Read its **Method** section
+before re-testing anything over the hero photograph: averages hid a 2.11:1
+failure that patch sampling caught.
+
 ### Fixes from the 2026-09-22 WCAG 2.1 AA pass
 
 1. **`.rfi-field__box` is `min-height: 48px`, never `height`** (1.4.4 Resize
